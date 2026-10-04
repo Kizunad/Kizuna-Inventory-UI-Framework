@@ -35,6 +35,12 @@
 
 公共 API、文档和示例使用通用库存与界面概念。接入方的包名、玩法标识和网络生成类型不进入框架 API。
 
+## 接入与扩展 Wiki
+
+[在线 Wiki](https://github.com/Kizunad/Kizuna-Inventory-UI-Framework/wiki) 提供接入准备、子模块与窗口扩展、库存状态、HUD 与槽位栏、主题背景、服务器通信、故障排查及版本兼容说明。
+
+文档源维护在本仓库的 [docs/wiki/](docs/wiki/Home.md)，随公开 API 变更一起更新。当前内容为设计指南，已发布状态见[版本与兼容性](docs/wiki/Versioning-and-Compatibility.md)。
+
 ## 设计文档
 
 | 文档 | 内容 |
