@@ -1,6 +1,6 @@
 # 故障排查
 
-> 状态：以下是拟定诊断及排查流程，不表示当前已有可运行框架会输出这些错误。
+> 状态：逻辑路由、wire 错误、请求超时和增量重同步入口已实现；统一的游戏内协议诊断面板尚未提供。
 
 ## 模块与通信
 
@@ -11,9 +11,9 @@
 | `PROTOCOL_MISMATCH` | 对照双方声明的版本范围；确认连接协商选择的是共同支持的版本 |
 | `UNKNOWN_MESSAGE` | 核对消息 ID、方向、目标模块及协商版本 |
 | `INVALID_PAYLOAD` | 对照对应版本 schema，检查必填身份与字段范围，不直接修改 UI 绕过校验 |
-| `REVISION_GAP` | 检查状态流是否丢失或乱序；请求完整快照后再接受增量 |
+| 增量基准不匹配 | 检查状态流是否丢失或乱序；请求完整快照后再接受增量 |
 | `STALE_CONNECTION` | 检查旧连接排队回调是否被隔离；不能通过取消连接代数检查来修复 |
-| `REQUEST_TIMEOUT` | 查 request ID、服务端结果与状态更新；先同步，不重复发送消费或移动请求 |
+| `TIMEOUT` / `HANDSHAKE_TIMEOUT` | 查 request ID、服务端结果与状态更新；先同步，不重复发送消费或移动请求 |
 | `HANDLER_FAILURE` | 查所属模块的异常与输入契约，保留最后有效状态并隔离相关功能 |
 
 ## 界面与外观
@@ -34,3 +34,17 @@
 日志不包含令牌、原始私人载荷或服务端凭证。重复错误优先提供首次出现的上下文和汇总次数，不需要贴出每帧刷新的整段日志。
 
 版本状态见[版本与兼容性](Versioning-and-Compatibility.md)。
+
+## 客户端接入诊断
+
+- `missing renderer in <module>: <id>`：声明了 Window、Hud 或 SlotBar，却未在 `ClientModule.register()` 绑定实现。
+- `undeclared binding`：注册类型不匹配，或绑定了当前模块未声明的 ID。
+- 库存拖动没有改变位置：组件只提交意图，检查模块是否接收请求并应用了 revision 递增的权威快照。
+- 背景无法加载：检查资源命名空间与路径；日志包含失败资源 ID，界面回退为主题底色。
+- 按 I 无响应：普通入口需要已经进入世界且没有其他屏幕；开发示例通过 `runDemo` 从标题页自动打开。
+
+## 布局没有保存或服务端没有响应
+
+检查 `runtime.preferenceError()` 与客户端日志。坏偏好文件或高于当前格式的文件会保留原文并阻止写回，避免覆盖用户设置。
+
+检查 `runtime.protocol().state()`：服务器必须声明 `kizuna_inventory_ui:message` 通道并返回兼容 ACCEPT，才会进入 READY。模块在 `protocolReady` 中申请状态；超时不自动重试操作。具体 wire 字段见[服务器通信](Server-Communication.md)。

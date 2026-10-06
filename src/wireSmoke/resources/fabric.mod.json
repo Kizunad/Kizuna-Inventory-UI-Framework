@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "kiui_wire_smoke",
+  "version": "1.0.0",
+  "name": "Inventory UI local wire smoke fixture",
+  "environment": "*",
+  "entrypoints": {
+    "server": ["dev.kizuna.inventoryui.wiresmoke.WireServer"],
+    "client": ["dev.kizuna.inventoryui.wiresmoke.WireClient"],
+    "kizuna_inventory_ui": ["dev.kizuna.inventoryui.wiresmoke.WireClient"]
+  },
+  "depends": {"fabricloader": ">=0.16.10", "fabric-api": "*", "minecraft": "1.20.1"}
+}

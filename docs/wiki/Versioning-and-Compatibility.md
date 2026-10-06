@@ -4,11 +4,11 @@
 
 | 项目 | 状态 |
 |---|---|
-| 框架 JAR / Maven 坐标 | 未发布 |
-| 稳定 Java API | 未发布 |
-| 服务器 wire 协议 | 设计草案，未冻结 |
-| 可编译接入示例 | 待实现 |
-| 游戏适配 | Minecraft 1.20.1 / Fabric / Java 17 / owo-lib 为首版目标 |
+| 框架 JAR / Maven 坐标 | 本地可构建 Fabric 框架／示例 JAR；尚未发布 Maven 或版本资产 |
+| 稳定 Java API | 纯逻辑 API 与 Fabric 客户端 API 已实现，尚未承诺兼容稳定性 |
+| 服务器 wire 协议 | `UiWire.VERSION=1` 已实现并验证编码往返，预发布契约，尚无生产服务器联调 |
+| 可编译接入示例 | `src/demo/`，通过公开入口依赖框架，单独输出 JAR |
+| 游戏适配 | Minecraft 1.20.1 / Fabric Loader 0.16.10 / Fabric API 0.92.3+1.20.1 / Java 17 / owo-lib 0.11.2+1.20 |
 
 “目标支持”不等于已验证兼容。正式版本必须提供依赖范围、构建和运行证据，本文随发布更新。
 

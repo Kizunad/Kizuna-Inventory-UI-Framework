@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "kiui_demo",
+  "version": "0.1.0",
+  "name": "Inventory UI Demo",
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.kizuna.inventoryui.demo.DemoClient"],
+    "kizuna_inventory_ui": ["dev.kizuna.inventoryui.demo.DemoModule"]
+  },
+  "depends": {"kizuna_inventory_ui": "*"}
+}

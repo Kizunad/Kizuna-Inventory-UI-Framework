@@ -2,7 +2,7 @@
 
 面向模组开发者的接入与扩展指南。框架提供库存界面、窗口工作台、HUD 布局、主题注册及模块通信基础设施，接入方负责业务数据与服务端规则。
 
-> 当前为设计阶段，尚无已发布 JAR、Maven 坐标或稳定 Java API。以下文档说明拟定的接入契约；标为“概念示例”的内容不能直接编译或作为网络配置使用。
+> 当前已有 Java 17 基础层、Fabric/owo 工作台及独立演示 JAR，可本地构建运行；尚无已发布版本、Maven 坐标或稳定 API。文档将已实现代码和后续设计分开说明。
 
 ## 从哪里开始
 
@@ -26,6 +26,8 @@
 - **状态源**：模块持有的共享数据入口，供多个窗口与 HUD 订阅。
 - **操作意图**：用户希望执行的动作；发送成功不等于服务端已经执行。
 
-第一版平台目标为 Minecraft 1.20.1、Fabric、Java 17 和 owo-lib，尚未完成运行验证。模块注册与网络握手属于不同阶段：Fabric 先加载 JAR，框架再检查模块依赖，连接服务端后协商通信能力。
+当前构建使用 Minecraft 1.20.1、Fabric Loader 0.16.10、Java 17 和 owo-lib 0.11.2+1.20。模块注册与网络握手属于不同阶段：Fabric 先加载 JAR，框架再检查模块依赖，连接服务端后再按每条消息的版本和方向协商能力。
 
 架构决议与实施范围见主仓库的[架构设计](https://github.com/Kizunad/Kizuna-Inventory-UI-Framework/blob/main/docs/architecture.md)、[协议设计](https://github.com/Kizunad/Kizuna-Inventory-UI-Framework/blob/main/docs/protocol.md)和[路线图](https://github.com/Kizunad/Kizuna-Inventory-UI-Framework/blob/main/docs/roadmap.md)。
+
+- [框架边界与迁移清单](Framework-Boundaries.md)：公共能力、子 JAR 职责及偏好存储。

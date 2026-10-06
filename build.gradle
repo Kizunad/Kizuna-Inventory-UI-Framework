@@ -1,0 +1,104 @@
+plugins {
+    id 'fabric-loom' version '1.6-SNAPSHOT'
+    id 'java-library'
+}
+
+group = 'dev.kizuna.inventoryui'
+version = '0.1.0-SNAPSHOT'
+
+repositories {
+    maven { url = 'https://maven.fabricmc.net/' }
+    maven { url = 'https://maven.wispforest.io/releases' }
+    mavenCentral()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    minecraft 'com.mojang:minecraft:1.20.1'
+    mappings 'net.fabricmc:yarn:1.20.1+build.10:v2'
+    modImplementation 'net.fabricmc:fabric-loader:0.16.10'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.92.3+1.20.1'
+    modImplementation 'io.wispforest:owo-lib:0.11.2+1.20'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+sourceSets {
+    demo {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+    wireSmoke {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+
+loom {
+    mods {
+        'kizuna_inventory_ui' { sourceSet sourceSets.main }
+        'kiui_demo' { sourceSet sourceSets.demo }
+        'kiui_wire_smoke' { sourceSet sourceSets.wireSmoke }
+    }
+    runs {
+        demo {
+            client()
+            source sourceSets.demo
+            runDir 'build/demo'
+        }
+        smoke {
+            client()
+            source sourceSets.demo
+            property 'kiui.smoke', 'true'
+            runDir 'build/smoke'
+        }
+        wireServer {
+            server()
+            source sourceSets.wireSmoke
+            runDir 'build/wire-server'
+            programArg 'nogui'
+        }
+        wireClient {
+            client()
+            source sourceSets.wireSmoke
+            property 'kiui.wireSmoke', 'true'
+            property 'kiui.smoke', 'true'
+            runDir 'build/wire-client'
+        }
+    }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
+
+jar { from('LICENSE') }
+
+tasks.register('demoJar', Jar) {
+    archiveClassifier = 'demo-dev'
+    from sourceSets.demo.output
+}
+
+tasks.register('remapDemoJar', net.fabricmc.loom.task.RemapJarTask) {
+    dependsOn tasks.named('demoJar')
+    inputFile = tasks.named('demoJar').flatMap { it.archiveFile }
+    archiveClassifier = 'demo'
+    addNestedDependencies = false
+}
+
+build.dependsOn tasks.named('remapDemoJar')
