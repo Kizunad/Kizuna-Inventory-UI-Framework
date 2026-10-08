@@ -1,6 +1,6 @@
 package dev.kizuna.inventoryui.protocol;
 
-import com.google.gson.JsonNull;
+import com.google.protobuf.ByteString;
 
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 
@@ -58,6 +58,7 @@ public final class UiProtocolSession {
     }
 
     public Map<String, UiWire.Capability> capabilities() {
+        // 从每个已注册 codec 读取生成类型全名，不能由协商层另写一份载荷清单。
         var result = new LinkedHashMap<String, UiWire.Capability>();
         contracts.forEach(
                 (id, value) ->
@@ -67,7 +68,8 @@ public final class UiProtocolSession {
                                         value.route().moduleId(),
                                         value.route().version(),
                                         value.route().direction(),
-                                        value.required())));
+                                        value.required(),
+                                        value.codec().payloadType())));
         return Map.copyOf(result);
     }
 
@@ -126,7 +128,7 @@ public final class UiProtocolSession {
     }
 
     private void accept(UiWire.Packet packet) {
-        // 服务器可以省略可选能力，必需能力必须存在且方向、版本和模块身份完全一致。
+        // 可省略可选能力；必需能力必须存在，方向、版本、模块和生成类型必须一致。
         if (state != State.NEGOTIATING) {
             reject(packet, "UNEXPECTED_HANDSHAKE");
             return;
@@ -144,7 +146,8 @@ public final class UiProtocolSession {
             if (ours == null
                     || !ours.module().equals(theirs.module())
                     || ours.version() != theirs.version()
-                    || ours.direction() != theirs.direction()) {
+                    || ours.direction() != theirs.direction()
+                    || !ours.payloadType().equals(theirs.payloadType())) {
                 error = "PROTOCOL_MISMATCH";
             }
         }
@@ -253,7 +256,7 @@ public final class UiProtocolSession {
                             packet.version(),
                             packet.request(),
                             code,
-                            JsonNull.INSTANCE,
+                            ByteString.EMPTY,
                             Map.of()));
         } catch (RuntimeException failure) {
             diagnostics.accept("TRANSPORT_FAILURE: " + failure.getMessage());

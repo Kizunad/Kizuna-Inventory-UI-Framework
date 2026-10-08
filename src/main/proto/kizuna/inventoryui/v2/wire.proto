@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package kizuna.inventoryui.v2;
+
+option java_package = "dev.kizuna.inventoryui.protocol.pb";
+option java_outer_classname = "WireProtocol";
+
+// wire v2；与原 JSON wire v1 不兼容。
+// CustomPayload 通道 kizuna_inventory_ui:message 的整个 body 是一个 Envelope，
+// 不使用 writeDelimitedTo，也不添加字符串或字节数组长度。最大 262144 字节。
+// 字段编号与枚举数值是跨语言契约；删除字段时保留 reserved，禁止复用。
+message Envelope {
+  uint32 protocol = 1; // 必须为 2，不等于具体消息版本或库存 revision。
+  Kind kind = 2;
+  string module = 3; // 注册的模块 ID，格式 namespace:path；不是 JAR 文件名。
+  string message = 4; // 注册的消息 ID，必须属于 module 的命名空间。
+  uint32 version = 5; // 业务版本为 1..2147483647；HELLO/ACCEPT 使用零。
+  string request = 6; // REQUEST 的 UUID；RESULT/ERROR 原样回传，无关联时为空。
+  // RESULT 只接受 ACCEPTED / REJECTED；ERROR 使用结构化错误码。
+  // 当前错误包括 MODULE_MISSING、UNKNOWN_MESSAGE、PROTOCOL_MISMATCH、
+  // INVALID_PAYLOAD、HANDLER_FAILURE、NOT_READY、INVALID_DIRECTION、
+  // INVALID_RESULT、UNEXPECTED_HANDSHAKE、REQUIRED_CAPABILITY_MISSING。
+  // 其余 kind 为空；业务拒绝详情另注册 EVENT，不把它当作 RESULT.data。
+  string status = 7;
+  // 由已协商的 message + version + payload_type 指定的 Protobuf 消息字节。
+  // HELLO/ACCEPT/RESULT/ERROR 为空；框架只解码目标模块已注册的类型。
+  bytes data = 8;
+  // 仅 HELLO/ACCEPT 使用：消息 ID -> 契约。业务信封使用空映射。
+  map<string, Capability> capabilities = 9;
+}
+
+enum Kind {
+  KIND_UNSPECIFIED = 0; // 不可作为合法消息发送。
+  HELLO = 1; // C2S：声明客户端能力。
+  ACCEPT = 2; // S2C：返回接受的能力集合。
+  EVENT = 3; // S2C：权威状态或通知。
+  REQUEST = 4; // C2S：业务操作意图。
+  RESULT = 5; // S2C：结算原请求，不直接修改库存。
+  ERROR = 6; // 双向协议错误；不得回复另一条 ERROR。
+}
+
+enum Direction {
+  DIRECTION_UNSPECIFIED = 0; // 不可协商。
+  SERVER_TO_CLIENT = 1;
+  CLIENT_TO_SERVER = 2;
+}
+
+message Capability {
+  string module = 1;
+  uint32 version = 2; // 取值 1..2147483647，与 Envelope.version 一致。
+  Direction direction = 3;
+  bool required = 4; // 客户端声明为必需的能力不可被服务端省略。
+  // Protobuf 描述符全名，例如 kizuna.inventoryui.v2.InventorySnapshot；
+  // 不使用 Java 类名。双方必须匹配；同名 schema 的演进仍依赖版本约定。
+  string payload_type = 5;
+}

@@ -4,6 +4,7 @@ import dev.kizuna.inventoryui.client.*;
 import dev.kizuna.inventoryui.protocol.*;
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.window.UiWindowDefinition;
+import dev.kizuna.inventoryui.wiresmoke.pb.SmokeProtocol;
 
 import io.wispforest.owo.ui.component.Components;
 
@@ -33,8 +34,6 @@ public final class WireClient implements ClientModInitializer, ClientModule {
     private long started;
     private int readyTicks;
 
-    public record Value(int value) {}
-
     @Override
     public FrameworkCatalog.Module definition() {
         return FrameworkCatalog.Module.of(
@@ -61,9 +60,9 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                                 "wire:state",
                                 1,
                                 UiMessageRouter.Direction.SERVER_TO_CLIENT,
-                                Value.class,
-                                value -> state = value.value()),
-                        UiWire.Codec.record(Value.class),
+                                SmokeProtocol.Value.class,
+                                value -> state = value.getValue()),
+                        UiWire.Codec.protobuf(SmokeProtocol.Value.getDefaultInstance()),
                         true));
         bindings.message(
                 new UiWire.Contract<>(
@@ -72,9 +71,9 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                                 "wire:change",
                                 1,
                                 UiMessageRouter.Direction.CLIENT_TO_SERVER,
-                                Value.class,
+                                SmokeProtocol.Value.class,
                                 null),
-                        UiWire.Codec.record(Value.class),
+                        UiWire.Codec.protobuf(SmokeProtocol.Value.getDefaultInstance()),
                         true));
         bindings.window(
                 "wire:window",
@@ -85,10 +84,16 @@ public final class WireClient implements ClientModInitializer, ClientModule {
     public void protocolReady(ClientRuntime runtime) {
         // 一个接受和一个拒绝请求走真实服务端，不能只验证写入客户端发送队列。
         runtime.protocol()
-                .request("wire:change", new Value(1), System.currentTimeMillis())
+                .request(
+                        "wire:change",
+                        SmokeProtocol.Value.newBuilder().setValue(1).build(),
+                        System.currentTimeMillis())
                 .thenAccept(outcome -> accepted = outcome.accepted());
         runtime.protocol()
-                .request("wire:change", new Value(0), System.currentTimeMillis())
+                .request(
+                        "wire:change",
+                        SmokeProtocol.Value.getDefaultInstance(),
+                        System.currentTimeMillis())
                 .thenAccept(
                         outcome ->
                                 rejected =
@@ -146,7 +151,7 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                                 Files.writeString(
                                         client.runDirectory.toPath().resolve("wire-client-ok.txt"),
                                         "state=7; accepted=true; rejected=true; pinned HUD"
-                                            + " rendered\n");
+                                                + " rendered\n");
                             } catch (IOException failure) {
                                 throw new UncheckedIOException(failure);
                             }

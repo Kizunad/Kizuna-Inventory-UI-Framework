@@ -81,9 +81,13 @@ var grid = new InventoryGridComponent(
 
 ## 快照、增量与线程
 
+网络字段统一定义在 `src/main/proto/kizuna/inventoryui/v2/inventory.proto`。注册消息时分别使用 `InventoryWire.SNAPSHOT`、`InventoryWire.DELTA` 和 `InventoryWire.MOVE`；它们将 Protobuf 生成类与本页领域模型互转并校验输入，不修改 UI 组件的模型接口。子 JAR 自行定义消息 ID、订阅及服务端事务，生成和接入方式见[服务器通信](Server-Communication.md)。
+
 `InventoryDelta(streamId, baseRevision, revision, containers, removedInstances, upserts)` 按实例删除或替换物品；`containers=null` 沿用当前目录，否则提供完整新目录。`state.applyDelta(delta, requestFullSnapshot)` 在基础版本精确匹配时原子应用；不匹配返回 false 并调用完整同步回调，无效占位抛错且不修改原状态。
 
 每条状态流应有清晰的身份和 revision。完整快照原子替换对应状态；增量仅在 base revision 匹配时应用，发现缺口先获取完整快照。窗口和 HUD 不分别消费同一条增量来维护各自的库存副本。
+
+Protobuf 增量使用 `ContainerDirectory` 子消息的存在性保留 `containers=null` 与空目录的差别：字段未设置时沿用旧目录，设置为空消息则完整清空目录。其他载荷字段及占格约束仍由适配器和显示模型检查。
 
 网络消息解码后，状态提交和 UI 通知通过客户端执行器串行执行。排队任务携带连接代数，旧连接消息不能写入新连接状态。
 

@@ -1,0 +1,9 @@
+syntax = "proto3";
+package kiui.fixture.v1;
+option java_package = "dev.kizuna.inventoryui.wiresmoke.pb";
+option java_outer_classname = "SmokeProtocol";
+
+// 只进入实机通信夹具，不向公共框架添加测试业务类型。
+message Value {
+  int32 value = 1;
+}

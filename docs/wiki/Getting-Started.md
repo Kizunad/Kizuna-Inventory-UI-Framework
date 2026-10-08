@@ -10,6 +10,7 @@
 | Fabric Loader | 0.16.10 |
 | Fabric API | 0.92.3+1.20.1 |
 | owo-lib | 0.11.2+1.20 |
+| protoc / Protobuf Java | 4.36.2；构建时生成代码，框架 JAR 内嵌运行库 |
 
 在仓库根目录运行：
 
@@ -24,7 +25,7 @@
 
 Linux 无窗口环境可用 `xvfb-run -a ./gradlew runSmoke`。演示检查通过后生成 `build/smoke/smoke-ok.txt` 和 `build/smoke/screenshots/workspace.png`。这是客户端模拟数据验收；真实 Fabric 通道验收另运行 `python3 scripts/wire_smoke.py`，详见[服务器通信](Server-Communication.md)。新增外框与背景截图为 `window-chrome.png`、`background-gallery.png`。
 
-尚无发布的 Maven 坐标。扩展开发暂时使用本地构建产物，例如在 Fabric Loom 项目中声明 `modImplementation files("libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar")`，同时声明上述运行依赖。框架只用于客户端。
+尚无发布的 Maven 坐标。扩展开发暂时使用本地构建产物，例如在 Fabric Loom 项目中声明 `modImplementation files("libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar")`，同时声明上述运行依赖。使用消息生成类及 `ByteString` 时，还需 `compileOnly 'com.google.protobuf:protobuf-java:4.36.2'`；框架已内嵌该运行库，子 JAR 不要重复打包。框架只用于客户端；服务端可以使用 `./gradlew protocolZip` 输出的协议源文件独立生成消息，详见[服务器通信](Server-Communication.md)。
 
 ## 最小接入流程
 

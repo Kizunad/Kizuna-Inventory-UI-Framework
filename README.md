@@ -4,7 +4,7 @@
 
 开发者通过公开 API 注册窗口、操作、HUD 和主题，并通过明确的数据与请求契约连接自己的服务端。框架提供公共交互与通信路由，具体玩法、数据模型扩展和服务端规则由接入方实现。
 
-**当前状态：公共框架能力已迁入并解耦，可构建框架 JAR 和独立示例 JAR；尚未发布稳定版本。** 已支持窗口目录／固定／拖动／尺寸调整、跨窗库存拖放／旋转／分堆、装备与自定义落点、模型预览和状态组件、槽位 HUD 投影、窗口固定 HUD、SVG 资源、灰绿主题、本地背景缩略图及布局保存。wire v1、模块协商与请求跟踪已通过本地 Fabric 服务端实机往返；生产业务事务仍由接入方验收。详见[框架边界](docs/wiki/Framework-Boundaries.md)。
+**当前状态：公共框架能力已迁入并解耦，可构建框架 JAR 和独立示例 JAR；尚未发布稳定版本。** 已支持窗口目录／固定／拖动／尺寸调整、跨窗库存拖放／旋转／分堆、装备与自定义落点、模型预览和状态组件、槽位 HUD 投影、窗口固定 HUD、SVG 资源、灰绿主题、本地背景缩略图及布局保存。Protobuf wire v2、模块协商与请求跟踪已通过本地 Fabric 服务端实机往返；生产业务事务仍由接入方验收。详见[框架边界](docs/wiki/Framework-Boundaries.md)。
 
 ## 演示
 
@@ -48,6 +48,8 @@
 公共 API、文档和示例使用通用库存与界面概念。接入方的包名、玩法标识和网络生成类型不进入框架 API。
 
 ## 接入与扩展 Wiki
+
+通信格式统一由 `src/main/proto/kizuna/inventoryui/v2/` 下的 `.proto` 定义。`./gradlew generateProto protocolZip` 生成 Java 消息类、描述符及可供服务端使用的协议源文件包；wire v2 与原 JSON v1 不兼容，生成、注册与迁移步骤见[服务器通信](docs/wiki/Server-Communication.md)。
 
 [在线 Wiki](https://github.com/Kizunad/Kizuna-Inventory-UI-Framework/wiki) 提供接入准备、子模块与窗口扩展、库存状态、HUD 与槽位栏、主题背景、服务器通信、故障排查及版本兼容说明。
 

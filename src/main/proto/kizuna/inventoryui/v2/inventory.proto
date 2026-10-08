@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package kizuna.inventoryui.v2;
+
+option java_package = "dev.kizuna.inventoryui.protocol.pb";
+option java_outer_classname = "InventoryProtocol";
+
+// 可复用的显示模型，消息 ID 和服务端事务规则由业务模块注册。
+// 坐标和尺寸的单位是格；revision 是非负的有符号 64 位整数。
+message InventorySnapshot {
+  string stream_id = 1; // 非空状态流身份，不代表玩家权限。
+  int64 revision = 2;
+  repeated Container containers = 3;
+  repeated Placement placements = 4; // 完整库存；空格不需要占位条目。
+}
+
+message Container {
+  string id = 1; // 非空，同一快照内唯一。
+  string title = 2; // 非空展示标题，不参与身份判断。
+  int32 rows = 3; // 纵向格子数，必须大于零。
+  int32 columns = 4; // 横向格子数，必须大于零。
+}
+
+message Item {
+  // 下列四个字符串字段均不可为空或仅含空白。
+  string instance_id = 1; // 具体物品实例，操作与去重必须使用此身份。
+  string item_id = 2; // 种类或模板身份，可由多个实例共用。
+  string name = 3;
+  string icon_id = 4; // 客户端纹理资源 ID，不是远端下载地址。
+  int32 width = 5; // 未旋转时的横向占格数，必须大于零。
+  int32 height = 6; // 未旋转时的纵向占格数，必须大于零。
+  int32 count = 7; // 当前堆叠数量，必须大于零。
+}
+
+message Placement {
+  string container_id = 1; // 必须引用同一快照中的容器。
+  int32 row = 2; // 从零开始，矩形左上角，纵向向下。
+  int32 column = 3; // 从零开始，矩形左上角，横向向右。
+  bool rotated = 4; // 交换 Item 宽高计算占格，不改变 Item 本身。
+  Item item = 5; // 必须存在，不接受空物品、越界或重叠占格。
+}
+
+// 用消息 presence 区分“沿用旧目录”和“显式清空目录”，不能仅用 repeated。
+message ContainerDirectory {
+  repeated Container containers = 1;
+}
+
+message InventoryDelta {
+  string stream_id = 1;
+  int64 base_revision = 2; // 必须精确匹配当前状态版本；缺口请求全量同步。
+  int64 revision = 3; // 严格大于 base_revision。
+  ContainerDirectory containers = 4; // 未设置沿用旧目录；设置后完整替换。
+  repeated string removed_instances = 5; // 非空且不重复的实例 ID，先删除再应用 upserts。
+  repeated Placement upserts = 6; // 按实例覆盖的完整物品及位置。
+}
+
+message MoveIntent {
+  string stream_id = 1;
+  int64 base_revision = 2; // 用户操作时看到的版本。
+  string instance_id = 3;
+  string source_container_id = 4;
+  string destination_container_id = 5;
+  int32 row = 6; // 目标左上角行号，从零开始。
+  int32 column = 7; // 目标左上角列号，从零开始。
+  bool rotated = 8;
+  int32 count = 9; // 请求移动数量，必须大于零；分堆由服务端原子处理。
+}

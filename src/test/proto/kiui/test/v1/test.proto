@@ -1,0 +1,9 @@
+syntax = "proto3";
+package kiui.test.v1;
+option java_package = "dev.kizuna.inventoryui.protocol.fixture";
+option java_outer_classname = "TestProtocol";
+
+// 只进入测试源集；验证模块独立 schema 的生成和领域校验。
+message Value {
+  int32 count = 1;
+}

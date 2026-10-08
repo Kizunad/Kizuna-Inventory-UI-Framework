@@ -1,6 +1,6 @@
 # 通信与模块契约
 
-状态：原始设计记录。当前 wire v1 已实现，实际通道、字段和错误码以 [服务器通信 Wiki](wiki/Server-Communication.md) 为准；本文中未落地的批处理、聚合诊断等仍是后续设计。尚无已发布稳定协议。
+状态：原始设计记录。当前运行时已迁移至 Protobuf wire v2，字段定义以 `src/main/proto/` 为准，实际通道、编解码接入与迁移说明见 [服务器通信 Wiki](wiki/Server-Communication.md)；本文中未落地的批处理、聚合诊断等仍是后续设计。尚无已发布稳定协议。
 
 ## 1. 数据路径
 

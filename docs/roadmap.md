@@ -1,6 +1,6 @@
 # 实施与验收记录
 
-2026-10-06，公共框架已补充窗口表现、HUD 固定、SVG、模型相机和本地背景能力。当前是可构建的预发布实现，尚无稳定版本资产；接入和扩展 API 的现行说明维护在 [Wiki](wiki/Home.md)，框架与子 JAR 职责见[迁移清单](wiki/Framework-Boundaries.md)。
+2026-10-06，公共框架已补充窗口表现、HUD 固定、SVG、模型相机和本地背景能力。2026-10-07，通信契约迁移到 Protobuf wire v2，并补充生成、分发和跨语言验证。当前是可构建的预发布实现，尚无稳定版本资产；接入和扩展 API 的现行说明维护在 [Wiki](wiki/Home.md)，框架与子 JAR 职责见[迁移清单](wiki/Framework-Boundaries.md)。
 
 ## 已实现
 
@@ -12,15 +12,16 @@
 - 可扩展图标／边框／tooltip／右键菜单／双击详情／快速操作，通用数值条、效果条和模型预览画布（水平／俯仰、自动旋转、聚焦过渡）。
 - 动态栏位内容／拖放／清除回调、同源 HUD 投影、HUD 锚点／拖动／缩放／显隐／复位。
 - 灰绿渐变与浅金主题、图标控制、本地背景目录与缩略图、SVG 注册／解析／绘制缓存；窗口、HUD、固定入口、动画和外观偏好保存。
-- UTF-8 JSON wire v1、Fabric 统一通道、能力协商、模块路由、结构化错误、请求结果／超时和连接代数隔离。
+- Protobuf wire v2、公共 `.proto` 与代码生成、独立协议包、Fabric 统一通道、类型协商、模块路由、结构化错误、请求结果／超时和连接代数隔离；替代原 JSON wire v1。
 
 ## 当前验证
 
 Java 17：
 
-- `./gradlew test build --offline`：57 个契约测试通过，框架／源码／demo 产物可构建。
+- `./gradlew test build compileWireSmokeJava --offline`：2026-10-07 以 Java 17 验证，68 个测试通过，零失败／错误／跳过，框架／源码／demo／proto ZIP 可构建。
 - `xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runSmoke --offline`：真实客户端加载、接受／拒绝移动、跨窗投递、分堆总数守恒、底栏绑定不改库存、主题／HUD、公共组件／模型绘制、关闭取消拖动与 scope 清理；新增尺寸输入、标题栏固定、最小化隐藏 HUD、恢复保留实例及背景卡片。
-- `python3 scripts/wire_smoke.py`：独立 Fabric 服务端实测协商、状态事件、请求接受／拒绝、MODULE_MISSING 回包和关闭工作台后的 HUD 绘制。
+- `python3 scripts/wire_smoke.py`：2026-10-07 重新验证 Protobuf v2，独立 Fabric 服务端实测协商、状态事件、请求接受／拒绝、MODULE_MISSING 回包和关闭工作台后的 HUD 绘制。
+- 同份公共 proto 生成 Python 消息：Python REQUEST → Java `UiWire` / `InventoryWire` → Python 解析 Java RESULT 的双向互通通过；同时验证增量目录 presence 和描述符包内容。这是本地跨语言编解码验证，不代表 Python 生产服务器已接入。
 - `python3 scripts/wiki.py check`：Wiki 页面和内部链接检查。
 - JAR 内容核验：框架产物不含 demo 类，公共源码不引用接入项目的包、业务模型或资源。
 

@@ -7,7 +7,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.util.Identifier;
 
-/** 单一可选 CustomPayload 通道；消息体为 UiWire UTF-8 JSON，不附加字符串长度前缀。 */
+/** 单一可选 CustomPayload 通道；消息体为 Protobuf Envelope，不附加长度前缀。 */
 final class FabricUiTransport {
     static final Identifier CHANNEL = new Identifier("kizuna_inventory_ui", "message");
 

@@ -1,8 +1,7 @@
 package dev.kizuna.inventoryui.wiresmoke;
 
-import com.google.gson.JsonObject;
-
 import dev.kizuna.inventoryui.protocol.UiWire;
+import dev.kizuna.inventoryui.wiresmoke.pb.SmokeProtocol;
 
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
@@ -47,8 +46,7 @@ public final class WireServer implements DedicatedServerModInitializer {
         // 夹具只提供验收所需的协议对端，生产框架不包含这个模拟业务。
         if (packet.kind() == UiWire.Kind.HELLO) {
             send(player, UiWire.Packet.negotiation(UiWire.Kind.ACCEPT, packet.capabilities()));
-            var data = new JsonObject();
-            data.addProperty("value", 7);
+            var data = SmokeProtocol.Value.newBuilder().setValue(7).build().toByteString();
             send(
                     player,
                     new UiWire.Packet(
@@ -74,7 +72,11 @@ public final class WireServer implements DedicatedServerModInitializer {
                             data,
                             Map.of()));
         } else if (packet.kind() == UiWire.Kind.REQUEST) {
-            boolean accepted = packet.data().getAsJsonObject().get("value").getAsInt() > 0;
+            boolean accepted =
+                    UiWire.Codec.protobuf(SmokeProtocol.Value.getDefaultInstance())
+                                    .decode(packet.data())
+                                    .getValue()
+                            > 0;
             send(
                     player,
                     new UiWire.Packet(
@@ -95,7 +97,7 @@ public final class WireServer implements DedicatedServerModInitializer {
             try {
                 Files.writeString(
                         Path.of("wire-server-ok.txt"),
-                        "HELLO/ACCEPT, EVENT, REQUEST/RESULT, MODULE_MISSING\n");
+                        "Protobuf wire v2: HELLO/ACCEPT, EVENT, REQUEST/RESULT, MODULE_MISSING\n");
             } catch (IOException failure) {
                 throw new UncheckedIOException(failure);
             }
@@ -103,7 +105,7 @@ public final class WireServer implements DedicatedServerModInitializer {
     }
 
     private static void send(ServerPlayerEntity player, UiWire.Packet packet) {
-        // 与客户端使用完全相同的裸 UTF-8 字节信封，不额外添加字符串长度。
+        // 与客户端使用同一份 proto 生成的二进制信封，不额外添加长度前缀。
         var buffer = PacketByteBufs.create();
         buffer.writeBytes(UiWire.encode(packet));
         ServerPlayNetworking.send(player, CHANNEL, buffer);

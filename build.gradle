@@ -1,10 +1,14 @@
 plugins {
     id 'fabric-loom' version '1.6-SNAPSHOT'
     id 'java-library'
+    id 'com.google.protobuf' version '0.9.6'
 }
 
 group = 'dev.kizuna.inventoryui'
 version = '0.1.0-SNAPSHOT'
+
+// 编译器与运行库使用同一版本，避免生成代码和运行时的兼容边界漂移。
+def protobufVersion = '4.36.2'
 
 repositories {
     maven { url = 'https://maven.fabricmc.net/' }
@@ -29,6 +33,8 @@ dependencies {
     modImplementation 'net.fabricmc:fabric-loader:0.16.10'
     modImplementation 'net.fabricmc.fabric-api:fabric-api:0.92.3+1.20.1'
     modImplementation 'io.wispforest:owo-lib:0.11.2+1.20'
+    api "com.google.protobuf:protobuf-java:${protobufVersion}"
+    include "com.google.protobuf:protobuf-java:${protobufVersion}"
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
@@ -45,6 +51,18 @@ sourceSets {
     wireSmoke {
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
         runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+
+protobuf {
+    protoc { artifact = "com.google.protobuf:protoc:${protobufVersion}" }
+    generateProtoTasks {
+        ofSourceSet('main').configureEach { task ->
+            task.generateDescriptorSet = true
+            task.descriptorSetOptions.path = layout.buildDirectory.file('descriptors/inventory-ui-v2.desc').get().asFile.path
+            task.descriptorSetOptions.includeImports = true
+            task.descriptorSetOptions.includeSourceInfo = true
+        }
     }
 }
 
@@ -102,3 +120,15 @@ tasks.register('remapDemoJar', net.fabricmc.loom.task.RemapJarTask) {
 }
 
 build.dependsOn tasks.named('remapDemoJar')
+
+// 服务端可直接取用协议源文件，无需依赖 Minecraft 客户端框架 JAR。
+tasks.register('protocolZip', Zip) {
+    dependsOn tasks.named('generateProto')
+    archiveClassifier = 'proto'
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from('src/main/proto')
+    from(layout.buildDirectory.file('descriptors/inventory-ui-v2.desc')) { into 'descriptors' }
+    from('LICENSE')
+}
+
+build.dependsOn tasks.named('protocolZip')

@@ -2,8 +2,9 @@ package dev.kizuna.inventoryui.protocol;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.google.gson.JsonNull;
+import com.google.protobuf.ByteString;
 
+import dev.kizuna.inventoryui.protocol.fixture.TestProtocol;
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 
 import org.junit.jupiter.api.Test;
@@ -16,11 +17,18 @@ import java.util.Set;
 class UiProtocolSessionTest {
     record Value(int count) {
         Value {
+            // protobuf 允许 count 的默认零值，领域转换必须拒绝无效业务数量。
             if (count <= 0) {
                 throw new IllegalArgumentException("count must be positive");
             }
         }
     }
+
+    private static final UiWire.Codec<Value> VALUE_CODEC =
+            UiWire.Codec.protobuf(
+                    TestProtocol.Value.getDefaultInstance(),
+                    value -> TestProtocol.Value.newBuilder().setCount(value.count()).build(),
+                    value -> new Value(value.getCount()));
 
     private final List<UiWire.Packet> outbound = new ArrayList<>();
     private final List<String> diagnostics = new ArrayList<>();
@@ -39,7 +47,7 @@ class UiProtocolSessionTest {
                                 UiMessageRouter.Direction.SERVER_TO_CLIENT,
                                 Value.class,
                                 received::add),
-                        UiWire.Codec.record(Value.class),
+                        VALUE_CODEC,
                         true);
         var request =
                 new UiWire.Contract<>(
@@ -50,7 +58,7 @@ class UiProtocolSessionTest {
                                 UiMessageRouter.Direction.CLIENT_TO_SERVER,
                                 Value.class,
                                 null),
-                        UiWire.Codec.record(Value.class),
+                        VALUE_CODEC,
                         false);
         return new UiProtocolSession(
                 catalog,
@@ -84,7 +92,7 @@ class UiProtocolSessionTest {
                         1,
                         "",
                         "",
-                        UiWire.Codec.record(Value.class).encode(new Value(7)),
+                        VALUE_CODEC.encode(new Value(7)),
                         Map.of());
         session.receive(session.generation(), UiWire.decode(UiWire.encode(event)));
         assertEquals(List.of(new Value(7)), received, "一个事件只应用一次，多个 UI 订阅同一状态");
@@ -100,7 +108,7 @@ class UiProtocolSessionTest {
                         1,
                         sent.request(),
                         "ACCEPTED",
-                        JsonNull.INSTANCE,
+                        ByteString.EMPTY,
                         Map.of()));
         assertFalse(result.isDone(), "其他模块不能结算请求");
         session.receive(
@@ -113,7 +121,7 @@ class UiProtocolSessionTest {
                         1,
                         sent.request(),
                         "REJECTED",
-                        JsonNull.INSTANCE,
+                        ByteString.EMPTY,
                         Map.of()));
         assertFalse(result.join().accepted());
         assertEquals("REJECTED", result.join().code());
@@ -134,7 +142,7 @@ class UiProtocolSessionTest {
                         1,
                         "",
                         "",
-                        JsonNull.INSTANCE,
+                        ByteString.EMPTY,
                         Map.of()));
         assertEquals("MODULE_MISSING", outbound.get(outbound.size() - 1).status());
         session.receive(
@@ -147,7 +155,7 @@ class UiProtocolSessionTest {
                         1,
                         "",
                         "",
-                        com.google.gson.JsonParser.parseString("{\"count\":0}"),
+                        TestProtocol.Value.getDefaultInstance().toByteString(),
                         Map.of()));
         assertEquals("INVALID_PAYLOAD", outbound.get(outbound.size() - 1).status());
         assertTrue(received.isEmpty());
@@ -177,7 +185,7 @@ class UiProtocolSessionTest {
                         1,
                         "",
                         "",
-                        UiWire.Codec.record(Value.class).encode(new Value(9)),
+                        VALUE_CODEC.encode(new Value(9)),
                         Map.of()));
         assertTrue(received.isEmpty());
     }
@@ -195,7 +203,7 @@ class UiProtocolSessionTest {
     }
 
     @Test
-    void wireRejectsOversizeInvalidUtf8AndDeepJsonBeforeDecoding() {
+    void wireRejectsOversizeMalformedProtobufAndLegacyJson() {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> UiWire.decode(new byte[UiWire.MAX_PACKET_BYTES + 1]));
@@ -204,7 +212,32 @@ class UiProtocolSessionTest {
                 IllegalArgumentException.class,
                 () ->
                         UiWire.decode(
-                                ("[".repeat(100) + "0" + "]".repeat(100))
+                                "{\"protocol\":1,\"kind\":\"HELLO\"}"
                                         .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void mismatchedProtobufTypeCannotCompleteNegotiation() {
+        // 相同消息 ID/版本却绑定不同生成类型时，必须在交付任何业务数据前失败。
+        var session = session();
+        session.connect(0);
+        var capabilities = new java.util.LinkedHashMap<>(session.capabilities());
+        var original = capabilities.get("test:state");
+        capabilities.put(
+                "test:state",
+                new UiWire.Capability(
+                        original.module(),
+                        original.version(),
+                        original.direction(),
+                        original.required(),
+                        "other.module.State"));
+        session.receive(
+                session.generation(),
+                UiWire.decode(
+                        UiWire.encode(
+                                UiWire.Packet.negotiation(UiWire.Kind.ACCEPT, capabilities))));
+        assertEquals(UiProtocolSession.State.FAILED, session.state());
+        assertEquals("PROTOCOL_MISMATCH", outbound.get(outbound.size() - 1).status());
+        assertTrue(received.isEmpty());
     }
 }
