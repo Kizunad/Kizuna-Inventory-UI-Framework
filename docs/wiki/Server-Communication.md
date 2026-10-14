@@ -34,6 +34,10 @@ protoc -I "src/main/proto" \
 
 Java 子 JAR 复用框架提供的生成类及运行库；不要把公共 proto 再生成一份同包类塞入子 JAR。自定义业务 proto 由子 JAR 自己生成，可 `import "kizuna/inventoryui/v2/inventory.proto"` 引用公共类型；公共协议目录只作为 import 路径。Fabric 框架产物内嵌 Protobuf Java 运行库，使用本地文件依赖开发时还需声明 `compileOnly 'com.google.protobuf:protobuf-java:4.36.2'`，不要再次内嵌另一份运行库。
 
+## 统一服务端宿主
+
+专用服务器现有独立 Framework 服务端 JAR，所有业务通过 `FabricServerModule` 入口注册，共用一个通道接收器和一次握手。注册、会话、主动推送和旧适配器迁移见[服务端模块与统一路由](Server-Modules.md)。模块不再各自注册公共接收器。公共字段保持 wire v2；当前服务端 C2S 信封上限 16 KiB，S2C 上限 256 KiB。
+
 ## 职责与入口
 
 框架接收统一信封，确认所属模块及消息契约后，只调用对应子 JAR 的处理器。处理器更新共享状态，多个窗口和 HUD 订阅同一份状态。客户端操作反向生成模块请求，通过框架发送并跟踪结果。

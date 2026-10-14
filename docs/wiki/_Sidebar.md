@@ -6,6 +6,7 @@
 - [HUD 与槽位栏](HUD-and-Slot-Bars.md)
 - [主题与背景](Themes-and-Backgrounds.md)
 - [服务器通信](Server-Communication.md)
+- [服务端模块与统一路由](Server-Modules.md)
 - [故障排查](Troubleshooting.md)
 - [版本与兼容性](Versioning-and-Compatibility.md)
 - [文档维护](Documentation-Maintenance.md)

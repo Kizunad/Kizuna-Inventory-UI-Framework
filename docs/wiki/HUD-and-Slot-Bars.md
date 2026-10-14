@@ -10,7 +10,17 @@ HUD 注册项描述稳定 ID、标题、内容工厂、数据源、默认锚点�
 
 `ClientRuntime.hudLayout()` 返回 `HudLayout`。`place(id, new HudLayout.Placement(visible, offsetX, offsetY, scale))` 设置相对锚点的布局，缩放范围 0.25–4；`bounds()` 在视口变化时重新约束到屏幕内。偏好保存在本地版本化 JSON；布局面板菜单外可直接拖动 HUD，菜单也提供位置、缩放和复位操作。
 
-`SlotBar(id, slots)` 声明任意数量、具有稳定 ID 的 `Slot(id, kind)`；`ClientBindings.slotBar(id, provider)` 为每个槽返回 `SlotContent(label, activate)`。工作台每帧读取内容，底栏横向滚动，点击调用模块动作。模块如需投影同一栏位，再声明一个 HUD 并调用 `bindings.slotBarHud(hudId, barId)`；框架复用同一内容供应器绘制，无需自行复制绑定状态。一个 HUD 只能选择自定义绘制器或槽位栏投影之一。
+`SlotBar(id, slots)` 声明任意数量、具有稳定 ID 的 `Slot(id, kind)`；`ClientBindings.slotBar(id, provider)` 为每个槽返回 `SlotContent(label, activate)`。槽位注册提供内容契约，不自动生成工作台底栏；模块通过 `ItemSlotComponent` 在自己的窗口内承载交互。模块如需投影同一栏位，再声明一个 HUD 并调用 `bindings.slotBarHud(hudId, barId)`；框架复用同一内容供应器绘制，无需自行复制绑定状态。一个 HUD 只能选择自定义绘制器或槽位栏投影之一。
+
+工作台底部仅在有最小化窗口时出现独立卡片，沿用悬浮窗口的主题和图标，每张卡片只有恢复、关闭两个按钮。恢复保留同一实例和 HUD 固定状态，关闭释放窗口及订阅；标题不作为按钮。没有最小化窗口就不渲染底部内容、不占高度。固定的功能入口改在“功能”菜单置顶，正常窗口不重复生成页签。
+
+适用于当前未发布的 `0.1.0-SNAPSHOT`：此前依赖自动底栏的模块应使用 `ItemSlotComponent`，或显式注册 `slotBarHud`。槽位注册、绑定回调及已保存的固定入口 ID 均保留。
+
+## 原版 HUD 的显示范围
+
+工作台打开时隐藏整个原版 HUD，包括物品栏、十字准星、生命值、饥饿值、经验、聊天、计分板和状态提示；世界画面仍正常渲染。关闭工作台后立即按当前游戏设置恢复，不写入或切换玩家的 F1 设置。
+
+扩展的独立全屏库存页面可让自己的 `Screen` 实现 `dev.kizuna.inventoryui.client.VanillaHudHidden`，使用相同规则。框架的普通 HUD 回调也在此类页面下停止；工作台“HUD 布局”面板通过显式绘制保留预览。该接口不控制其他模组自己注入的绘制，也不隐藏其他未标记的游戏界面。
 
 概念示例：一个 `example:capacity` HUD 读取库存负重快照，在右下角显示容量。默认位置只是初始值；用户保存的位置按 HUD ID 恢复。模块暂时缺失时保留偏好，不套用到其他部件。
 
@@ -20,7 +30,7 @@ HUD 与工作台窗口可以订阅同一个状态源，但具有独立生命周�
 
 | 对象 | 数据来自哪里 | 点击或拖放的含义 |
 |---|---|---|
-| 窗口栏 | 已打开窗口及用户固定的入口 | 打开、恢复或聚焦窗口 |
+| 最小化窗口卡片 | 当前最小化窗口 | 恢复同一窗口或关闭并释放 |
 | 游戏槽位栏 | 模块提供的槽位与绑定快照 | 提交物品或动作绑定意图 |
 | HUD 部件 | 模块状态源 | 显示数据，按明确能力提供交互 |
 
@@ -41,6 +51,8 @@ HUD 的显示条件与用户偏好共同决定可见性。全屏遮罩等内容�
 ## 验证建议
 
 验证新增 HUD 自动进入管理列表；工作台关闭后仍能更新；绑定被拒绝后两处显示一致；GUI scale 和视口变化后布局与命中一致；缺失模块不会覆盖其他 HUD 的偏好。
+
+2026-10-13 本地验证：Framework 的 86 项单测及构建通过。真实客户端 `runSmoke` 验证多张最小化卡片的独立恢复、关闭和窗口 scope 释放，注册槽位通过窗口组件继续接收拖放。`scripts/wire_smoke.py` 在真实游戏世界中比较帧缓冲，确认标记页面下调用原版 HUD 不改变画布，离开页面后恢复绘制，F1 设置未被更改。证据位于 `build/minimized-smoke.log`、`build/smoke/screenshots/minimized-windows.png` 和 `build/wire-client/wire-client-ok.txt`；尚未更新 Windows Native 手动实例。
 
 相关文档：[库存与状态](Inventory-and-State.md)、[模块与窗口扩展](Modules-and-Windows.md)、[主题与背景](Themes-and-Backgrounds.md)。
 

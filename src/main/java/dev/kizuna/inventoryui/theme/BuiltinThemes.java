@@ -18,7 +18,7 @@ public final class BuiltinThemes {
             new FrameworkCatalog.Theme(
                     "kiui:dark",
                     Map.ofEntries(
-                            entry(BACKGROUND, 0xFF171E20),
+                            entry(BACKGROUND, 0x00000000),
                             entry(PANEL, 0xFF292C2D),
                             entry(HEADER, 0xFF484D48),
                             entry(TEXT, 0xFFE2EAE5),

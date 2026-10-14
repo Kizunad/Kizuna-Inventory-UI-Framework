@@ -33,6 +33,7 @@ public final class WireClient implements ClientModInitializer, ClientModule {
     private boolean connecting;
     private long started;
     private int readyTicks;
+    private HudVisibilityProbe hudProbe;
 
     @Override
     public FrameworkCatalog.Module definition() {
@@ -147,11 +148,18 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                                     "pinned-hud.png",
                                     client.getFramebuffer(),
                                     message -> {});
+                            // 取消固定窗口后，像素对照只检查原版 HUD，不混入测试模块自身的 HUD。
+                            runtime.workspace().disconnect();
+                            hudProbe = new HudVisibilityProbe();
+                            client.setScreen(hudProbe);
+                        }
+                        if (hudProbe != null && hudProbe.verified()) {
                             try {
                                 Files.writeString(
                                         client.runDirectory.toPath().resolve("wire-client-ok.txt"),
                                         "state=7; accepted=true; rejected=true; pinned HUD"
-                                                + " rendered\n");
+                                            + " rendered; vanilla HUD hidden and restored; F1"
+                                            + " unchanged\n");
                             } catch (IOException failure) {
                                 throw new UncheckedIOException(failure);
                             }

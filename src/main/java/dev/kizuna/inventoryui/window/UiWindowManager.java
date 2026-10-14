@@ -11,6 +11,8 @@ import java.util.Objects;
 
 /** 窗口 identity、z-order、输入捕获和 viewport 约束的唯一实现。 */
 public final class UiWindowManager {
+    private static final int AUTOMATIC_MARGIN = 8;
+    private static final int AUTOMATIC_TOP = 38;
     private final Map<WindowKey, WindowState> windows = new LinkedHashMap<>();
     private WindowKey capturedKey;
     private double captureOffsetX;
@@ -47,10 +49,11 @@ public final class UiWindowManager {
                 new WindowState(
                         key,
                         definition,
-                        Objects.requireNonNull(initialBounds, "initialBounds must not be null"),
+                        initialBounds == null ? preferredBounds(definition) : initialBounds,
                         new DefaultUiScreenScope());
+        created.automaticBounds = initialBounds == null;
         created.scope().onOpen();
-        created.bounds(clamp(initialBounds, definition));
+        created.bounds(clamp(created.desiredBounds, definition));
         windows.put(key, created);
         focus(key);
         return created;
@@ -99,6 +102,7 @@ public final class UiWindowManager {
             return false;
         }
         dragging = true;
+        state.automaticBounds = false;
         captureOffsetX = x - state.bounds().x();
         captureOffsetY = y - state.bounds().y();
         return true;
@@ -209,6 +213,7 @@ public final class UiWindowManager {
         Rect effective = clamp(displayed, state.definition);
         state.bounds(effective);
         state.desiredBounds = effective;
+        state.automaticBounds = false;
     }
 
     public synchronized boolean resize(WindowKey key, String width, String height) {
@@ -223,6 +228,7 @@ public final class UiWindowManager {
             if (!editable(state)) {
                 return false;
             }
+            state.automaticBounds = false;
             state.desiredBounds =
                     new Rect(
                             state.bounds.x(),
@@ -259,15 +265,42 @@ public final class UiWindowManager {
     }
 
     public synchronized void resizeViewport(int width, int height) {
-        // 视口缩小时只压缩实际外框，变大后仍根据 desiredBounds 恢复布局。
+        // 自动窗口随视口重选舒适尺寸；玩家手动布局只临时裁剪，保留原有意图。
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException("viewport size must be positive");
         }
         viewportWidth = width;
         viewportHeight = height;
         for (WindowState state : windows.values()) {
+            if (state.automaticBounds) {
+                state.desiredBounds = preferredBounds(state.definition());
+            }
             state.bounds(clamp(state.desiredBounds, state.definition()));
         }
+    }
+
+    public synchronized void restorePreferredBounds(WindowKey key) {
+        // 明确重置布局后恢复自动模式，不重新创建组件、订阅或业务会话。
+        WindowState state = windows.get(key);
+        if (!editable(state)) {
+            return;
+        }
+        state.automaticBounds = true;
+        state.desiredBounds = preferredBounds(state.definition());
+        state.bounds(clamp(state.desiredBounds, state.definition()));
+    }
+
+    private Rect preferredBounds(UiWindowDefinition definition) {
+        // 顶部为工作台入口留位，小屏优先使用可用空间；大屏不把内容无限拉大。
+        int availableWidth = Math.max(1, viewportWidth - AUTOMATIC_MARGIN * 2);
+        int availableHeight = Math.max(1, viewportHeight - AUTOMATIC_TOP - AUTOMATIC_MARGIN);
+        int width = Math.min(viewportWidth, Math.max(definition.minimumWidth(),
+                Math.min(definition.preferredWidth(), availableWidth)));
+        int height = Math.min(viewportHeight, Math.max(definition.minimumHeight(),
+                Math.min(definition.preferredHeight(), availableHeight)));
+        int x = (viewportWidth - width) / 2;
+        int y = Math.min(AUTOMATIC_TOP, viewportHeight - height);
+        return new Rect(x, y, width, height);
     }
 
     public synchronized WindowKey key(String windowType, String identity) {
@@ -357,6 +390,7 @@ public final class UiWindowManager {
         private final UiScreenScope scope;
         private Rect bounds;
         private Rect desiredBounds;
+        private boolean automaticBounds;
         private boolean closed;
         private boolean minimized;
         private boolean pinned;
@@ -376,6 +410,11 @@ public final class UiWindowManager {
 
         public UiWindowDefinition definition() {
             return definition;
+        }
+
+        public boolean automaticBounds() {
+            // 自动布局不写成固定偏好，重新打开时才能适配新的 GUI 缩放。
+            return automaticBounds;
         }
 
         public UiScreenScope scope() {

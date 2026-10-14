@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "kizuna_inventory_ui_server",
+  "version": "${version}",
+  "name": "Kizuna's Inventory UI Framework Server",
+  "description": "库存 UI 模块的统一服务端协议、会话和消息路由",
+  "authors": ["Kizunad"],
+  "license": "MIT",
+  "environment": "server",
+  "entrypoints": {"main": ["dev.kizuna.inventoryui.server.fabric.InventoryUiServer"]},
+  "depends": {
+    "java": ">=17",
+    "minecraft": "1.20.1",
+    "fabricloader": ">=0.16.10",
+    "fabric-api": ">=0.92.3+1.20.1"
+  }
+}

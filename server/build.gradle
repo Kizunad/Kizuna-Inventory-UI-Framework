@@ -1,0 +1,44 @@
+plugins {
+    id 'fabric-loom'
+    id 'java-library'
+    id 'com.google.protobuf'
+}
+
+group = rootProject.group
+version = rootProject.version
+base.archivesName = 'kizuna-inventory-ui-framework-server'
+def protobufVersion = rootProject.protobufVersion
+
+repositories {
+    maven { url = 'https://maven.fabricmc.net/' }
+    mavenCentral()
+}
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+}
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+dependencies {
+    minecraft 'com.mojang:minecraft:1.20.1'
+    mappings 'net.fabricmc:yarn:1.20.1+build.10:v2'
+    modImplementation 'net.fabricmc:fabric-loader:0.16.10'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.92.3+1.20.1'
+    api "com.google.protobuf:protobuf-java:${protobufVersion}"
+    include "com.google.protobuf:protobuf-java:${protobufVersion}"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+// 与客户端从同一份公共 schema 生成；子模块只生成自己的业务消息。
+sourceSets.main.proto.srcDir rootProject.file('src/main/proto')
+sourceSets.test.proto.srcDir rootProject.file('src/test/proto')
+protobuf { protoc { artifact = "com.google.protobuf:protoc:${protobufVersion}" } }
+test { useJUnitPlatform() }
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
+jar { from rootProject.file('LICENSE') }

@@ -22,7 +22,7 @@ public final class WorkspaceController {
     }
 
     public List<FrameworkCatalog.Feature> features(String query) {
-        // 搜索使用固定语言规则，排序用稳定 ID 兜底，避免同名入口每次刷新换位。
+        // 固定入口在功能菜单置顶，底部只用于最小化窗口；同名入口按稳定 ID 排序。
         String needle =
                 Objects.requireNonNull(query, "query must not be null")
                         .strip()
@@ -35,7 +35,9 @@ public final class WorkspaceController {
                                                 .toLowerCase(Locale.ROOT)
                                                 .contains(needle))
                 .sorted(
-                        Comparator.comparing(FrameworkCatalog.Feature::category)
+                        Comparator.<FrameworkCatalog.Feature, Boolean>comparing(
+                                        feature -> !pinnedFeatures.contains(feature.id()))
+                                .thenComparing(FrameworkCatalog.Feature::category)
                                 .thenComparing(FrameworkCatalog.Feature::title)
                                 .thenComparing(FrameworkCatalog.Feature::id))
                 .toList();

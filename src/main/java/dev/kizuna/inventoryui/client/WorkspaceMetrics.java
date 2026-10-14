@@ -3,9 +3,12 @@ package dev.kizuna.inventoryui.client;
 /** 工作台共享尺寸，单位均为逻辑像素；绘制、输入命中及窗口内容布局使用同一份定义。 */
 final class WorkspaceMetrics {
     static final int TOOLBAR_HEIGHT = 28;
-    static final int BOTTOM_BAR_HEIGHT = 58;
+    static final int BAR_PADDING_TOP = 4;
+    static final int BAR_PADDING_BOTTOM = 2;
 
     static final int WINDOW_HEADER_HEIGHT = 22;
+    static final int MINIMIZED_BAR_HEIGHT =
+            BAR_PADDING_TOP + WINDOW_HEADER_HEIGHT + BAR_PADDING_BOTTOM;
     static final int WINDOW_BORDER = 2;
     static final int WINDOW_ACTION_WIDTH = 22;
     static final int WINDOW_TITLE_PADDING_X = 9;

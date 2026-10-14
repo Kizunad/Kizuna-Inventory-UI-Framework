@@ -13,6 +13,8 @@ import net.minecraft.util.Identifier;
 
 import org.lwjgl.opengl.GL11;
 
+import java.util.List;
+
 /** 工作台与固定 HUD 共用外框；按钮绘制和点击都读取相同的动作矩形。 */
 final class WindowChrome {
     private static final int SHADOW_SPREAD = 7;
@@ -26,6 +28,7 @@ final class WindowChrome {
     private static final int ACCENT_END = 32;
 
     enum Action {
+        RESTORE("maximize-2"),
         SIZE("maximize-2"),
         MINIMIZE("minus"),
         PIN("lock-keyhole-open"),
@@ -41,12 +44,22 @@ final class WindowChrome {
     private static final Identifier PINNED =
             new Identifier("kizuna_inventory_ui", "textures/gui/window/lock-keyhole.png");
 
+    private static final List<Action> WINDOW_ACTIONS =
+            List.of(Action.SIZE, Action.MINIMIZE, Action.PIN, Action.CLOSE);
+    private static final List<Action> MINIMIZED_ACTIONS = List.of(Action.RESTORE, Action.CLOSE);
+
+    private static List<Action> actions(UiWindowManager.WindowState state) {
+        // 缩小后的卡片只允许恢复和关闭，仍与普通窗口共用颜色、图标及命中尺寸。
+        return state.minimized() ? MINIMIZED_ACTIONS : WINDOW_ACTIONS;
+    }
+
     static UiWindowManager.Rect actionBounds(
             UiWindowManager.WindowState state, UiWindowManager.Rect bounds, Action action) {
         // 工位和系统窗口不显示无法执行的固定按钮，紧凑宽度仍保留全部有效管理入口。
         int right = bounds.x() + bounds.width();
-        for (int i = Action.values().length - 1; i >= 0; i--) {
-            Action current = Action.values()[i];
+        var actions = actions(state);
+        for (int i = actions.size() - 1; i >= 0; i--) {
+            Action current = actions.get(i);
             if (current == Action.PIN && !state.canPin()) {
                 continue;
             }
@@ -65,7 +78,7 @@ final class WindowChrome {
     static Action hit(
             UiWindowManager.WindowState state, UiWindowManager.Rect bounds, double x, double y) {
         // 与绘制共用尺寸，窗口缩小时不会出现图标与实际点击位置错开。
-        for (Action action : Action.values()) {
+        for (Action action : actions(state)) {
             var area = actionBounds(state, bounds, action);
             if (area != null && area.contains(x, y)) {
                 return action;
@@ -112,7 +125,10 @@ final class WindowChrome {
                 x + Math.min(ACCENT_END, w),
                 y + header - 1,
                 runtime.color(HEADER_ACCENT));
-        int titleEnd = controls ? actionBounds(state, bounds, Action.SIZE).x() : x + w;
+        int titleEnd = x + w;
+        if (controls) {
+            titleEnd = actionBounds(state, bounds, actions(state).get(0)).x();
+        }
         var text = MinecraftClient.getInstance().textRenderer;
         context.drawText(
                 text,
@@ -130,7 +146,7 @@ final class WindowChrome {
         boolean blending = GL11.glIsEnabled(GL11.GL_BLEND);
         RenderSystem.enableBlend();
         try {
-            for (Action action : Action.values()) {
+            for (Action action : actions(state)) {
                 var area = actionBounds(state, bounds, action);
                 if (area == null) {
                     continue;

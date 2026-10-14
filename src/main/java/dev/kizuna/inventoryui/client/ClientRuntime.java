@@ -43,7 +43,7 @@ public final class ClientRuntime {
             new LinkedHashMap<>();
     private final Map<UiWindowManager.WindowKey, OwoWindowView> views = new LinkedHashMap<>();
     private String theme = BuiltinThemes.DARK.id();
-    private String background = "kiui:cosmos";
+    private String background;
     private boolean motion = true;
     private final Set<String> pinnedWindows = new LinkedHashSet<>();
     private final InventoryDragSession drag = new InventoryDragSession();
@@ -147,9 +147,14 @@ public final class ClientRuntime {
     public void savePreferences() {
         // 保留暂时缺失模块的偏好；已安装模块的固定入口则以用户当前选择为准。
         var windows = new LinkedHashMap<>(saved.windows());
-        workspace
-                .windowBar()
-                .forEach(state -> windows.put(state.key().windowType(), state.desiredBounds()));
+        for (var state : workspace.windowBar()) {
+            // 自动窗口不保存临时小屏尺寸；只有玩家明确调整过的外框才成为固定偏好。
+            if (state.automaticBounds()) {
+                windows.remove(state.key().windowType());
+            } else {
+                windows.put(state.key().windowType(), state.desiredBounds());
+            }
+        }
         var huds = new LinkedHashMap<>(saved.huds());
         catalog.huds().keySet().forEach(id -> huds.put(id, hudLayout.placement(id)));
         var pins = new LinkedHashSet<>(saved.pinnedFeatures());
@@ -360,8 +365,15 @@ public final class ClientRuntime {
         return BuiltinThemes.color(catalog.themes().get(theme), token);
     }
 
+    int bottomBarHeight() {
+        // 只有最小化窗口需要底部恢复入口；已展开窗口和注册槽位不占这块空间。
+        boolean hasMinimized =
+                workspace.windowBar().stream().anyMatch(UiWindowManager.WindowState::minimized);
+        return hasMinimized ? MINIMIZED_BAR_HEIGHT : 0;
+    }
+
     public UiWindowManager.WindowState open(String feature, String objectId) {
-        // 预留下方栏位空间，并错开新窗口的初始位置，减少完全重叠。
+        // 为已有最小化窗口留位；新窗口展开显示，不再创建额外的底部页签。
         var client = MinecraftClient.getInstance();
         if (!catalog.features().containsKey(feature)) {
             throw new IllegalArgumentException("unknown feature: " + feature);
@@ -370,20 +382,13 @@ public final class ClientRuntime {
                 .windows()
                 .resizeViewport(
                         client.getWindow().getScaledWidth(),
-                        Math.max(1, client.getWindow().getScaledHeight() - BOTTOM_BAR_HEIGHT));
-        int offset = workspace.windowBar().size() % CASCADE_POSITION_COUNT * CASCADE_STEP;
+                        Math.max(1, client.getWindow().getScaledHeight() - bottomBarHeight()));
         var state =
                 workspace.openFeature(
                         feature,
                         objectId,
                         saved.windows()
-                                .getOrDefault(
-                                        catalog.features().get(feature).windowType(),
-                                        new UiWindowManager.Rect(
-                                                INITIAL_WINDOW_X + offset,
-                                                INITIAL_WINDOW_Y + offset,
-                                                INITIAL_WINDOW_WIDTH,
-                                                INITIAL_WINDOW_HEIGHT)));
+                                .get(catalog.features().get(feature).windowType()));
         if (!views.containsKey(state.key())) {
             // 一个窗口实例只创建一棵组件树；关窗时由同一个 scope 释放视图和订阅。
             try {
@@ -423,18 +428,8 @@ public final class ClientRuntime {
                         saved.pinnedFeatures(),
                         motion,
                         pinnedWindows);
-        int index = 0;
         for (var window : workspace.windowBar()) {
-            int offset = index++ % CASCADE_POSITION_COUNT * CASCADE_STEP;
-            workspace
-                    .windows()
-                    .settleAt(
-                            window.key(),
-                            new UiWindowManager.Rect(
-                                    INITIAL_WINDOW_X + offset,
-                                    INITIAL_WINDOW_Y + offset,
-                                    INITIAL_WINDOW_WIDTH,
-                                    INITIAL_WINDOW_HEIGHT));
+            workspace.windows().restorePreferredBounds(window.key());
         }
         savePreferences();
     }

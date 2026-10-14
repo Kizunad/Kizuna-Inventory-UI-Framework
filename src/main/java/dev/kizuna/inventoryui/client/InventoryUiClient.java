@@ -86,10 +86,10 @@ public final class InventoryUiClient implements ClientModInitializer {
                 });
         HudRenderCallback.EVENT.register(
                 (context, delta) -> {
-                    // 工作台自行绘制 HUD 预览，避免普通 HUD 回调叠加绘制两次。
+                    // 库存页面只绘制自己的内容；工作台在布局面板内显式绘制 HUD 预览。
                     var client = MinecraftClient.getInstance();
                     if (client.options.hudHidden
-                            || client.currentScreen instanceof WorkspaceScreen) {
+                            || client.currentScreen instanceof VanillaHudHidden) {
                         return;
                     }
                     runtime.renderHuds(

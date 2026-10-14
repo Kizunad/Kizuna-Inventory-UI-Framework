@@ -7,3 +7,4 @@ pluginManagement {
 }
 
 rootProject.name = 'kizuna-inventory-ui-framework'
+include 'server'

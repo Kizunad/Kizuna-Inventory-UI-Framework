@@ -8,7 +8,7 @@ group = 'dev.kizuna.inventoryui'
 version = '0.1.0-SNAPSHOT'
 
 // 编译器与运行库使用同一版本，避免生成代码和运行时的兼容边界漂移。
-def protobufVersion = '4.36.2'
+ext.protobufVersion = '4.36.2'
 
 repositories {
     maven { url = 'https://maven.fabricmc.net/' }
@@ -44,6 +44,8 @@ test {
 }
 
 sourceSets {
+    // 客户端产物同时承载内置服务器路由；公共 proto 仍只生成一次。
+    main.java.srcDir 'server/src/main/java'
     demo {
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
         runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
@@ -132,3 +134,6 @@ tasks.register('protocolZip', Zip) {
 }
 
 build.dependsOn tasks.named('protocolZip')
+// 两端产物分别安装；服务端路由不依赖客户端 UI、owo 或渲染类。
+build.dependsOn ':server:build'
+check.dependsOn ':server:check'

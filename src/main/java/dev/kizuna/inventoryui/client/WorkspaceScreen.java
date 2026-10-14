@@ -26,11 +26,12 @@ import java.util.List;
 import java.util.Map;
 
 /** 工作台外壳：目录与外观是明确入口，业务窗口由注册目录生成。 */
-public final class WorkspaceScreen extends Screen {
+public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     // 菜单尺寸均为逻辑像素；坐标由尺寸和间距推导，不在绘制及输入中重复填写偏移。
     private static final int TOOLBAR_PADDING = 4;
-    private static final int TOOLBAR_BUTTON_WIDTH = 74;
-    private static final int APPEARANCE_BUTTON_WIDTH = 56;
+    private static final int FEATURE_BUTTON_WIDTH = 44;
+    private static final int HUD_BUTTON_WIDTH = 62;
+    private static final int APPEARANCE_BUTTON_WIDTH = 44;
     private static final int BUTTON_HEIGHT = 20;
     private static final int MENU_WIDTH = 290;
     private static final int MENU_INSET = 8;
@@ -47,24 +48,13 @@ public final class WorkspaceScreen extends Screen {
     private static final int NOTICE_INSET = 6;
     private static final int NOTICE_BOTTOM_GAP = 12;
 
-    // 底部两行分别承载槽位与窗口入口，命中区域直接复用绘制时的行坐标和尺寸。
+    // 底部只放最小化窗口，卡片与正常窗口共用标题栏样式；尺寸单位为逻辑像素。
     private static final int BAR_PADDING_X = 4;
-    private static final int SLOT_ROW_PADDING_TOP = 4;
-    private static final int SLOT_WIDTH = 32;
-    private static final int SLOT_HEIGHT = 26;
-    private static final int SLOT_GAP = 4;
-    private static final int SLOT_PITCH = SLOT_WIDTH + SLOT_GAP;
-    private static final int SLOT_TEXT_PADDING_X = 2;
-    private static final int SLOT_TEXT_PADDING_Y = 9;
-    private static final int SLOT_GROUP_GAP = 8;
-    private static final int WINDOW_BAR_BOTTOM_GAP = 2;
-    private static final int WINDOW_BAR_BUTTON_HEIGHT = 20;
-    private static final int WINDOW_BAR_MAX_BUTTON_WIDTH = 150;
-    private static final int WINDOW_BAR_TITLE_EXTRA_WIDTH = 20;
-    private static final int WINDOW_BAR_BUTTON_GAP = 4;
-    private static final int WINDOW_BAR_TEXT_PADDING_X = 4;
-    private static final int WINDOW_BAR_TEXT_PADDING_Y = 6;
-    private static final int WINDOW_BAR_TEXT_RESERVED_WIDTH = 12;
+    private static final int MINIMIZED_MIN_WIDTH = 128;
+    private static final int MINIMIZED_MAX_WIDTH = 200;
+    private static final int MINIMIZED_GAP = 8;
+    private static final int MINIMIZED_ACTION_COUNT = 2;
+    private static final int MINIMIZED_SCROLL_STEP = 36;
 
     // HUD 设置按钮的操作步长，与 HudLayout 接受的完整缩放范围区分开。
     private static final int HUD_MOVE_STEP = 16;
@@ -76,7 +66,6 @@ public final class WorkspaceScreen extends Screen {
     private static final int DRAG_POINTER_GAP = 8;
 
     private final ClientRuntime runtime;
-    private final List<Hit> bottomHits = new ArrayList<>();
     private UiWindowManager.WindowKey focused;
     private UiWindowManager.WindowKey pressed;
     private Panel panel = Panel.NONE;
@@ -84,9 +73,10 @@ public final class WorkspaceScreen extends Screen {
     private String query = "";
     private int page;
     private int bottomOffset;
+    private int bottomBarHeight;
+    private int menuBottom;
     private String notice = "";
     private UiWindowManager.WindowKey resizing;
-    private final List<SlotHit> slotHits = new ArrayList<>();
     private String draggingHud;
     private final Map<UiWindowManager.WindowKey, WindowMotion> motions = new LinkedHashMap<>();
     private final Map<UiWindowManager.WindowKey, UiWindowManager.Rect> displayed =
@@ -99,7 +89,6 @@ public final class WorkspaceScreen extends Screen {
     private static final int SIZE_INPUT_WIDTH = 66;
     private static final int SIZE_INPUT_MAX_LENGTH = 10;
     private static final int SIZE_PANEL_HEIGHT = 100;
-    private static final int RESTORE_ANCHOR_WIDTH = 112;
 
     public WorkspaceScreen(ClientRuntime runtime) {
         super(Text.literal("Inventory Workspace"));
@@ -108,11 +97,15 @@ public final class WorkspaceScreen extends Screen {
 
     @Override
     protected void init() {
-        // 主屏尺寸是逻辑像素；下方栏位保留固定高度，不作为可拖动窗口的布局区域。
-        runtime.workspace()
-                .windows()
-                .resizeViewport(width, Math.max(1, height - BOTTOM_BAR_HEIGHT));
+        // 主屏尺寸是逻辑像素；只为实际存在的底部入口预留布局空间。
+        updateViewport();
         rebuildControls();
+    }
+
+    private void updateViewport() {
+        // 绘制和输入共用本帧高度，避免底栏收起后仍有不可点击的空白区域。
+        bottomBarHeight = runtime.bottomBarHeight();
+        runtime.workspace().windows().resizeViewport(width, Math.max(1, height - bottomBarHeight));
     }
 
     private void rebuildControls() {
@@ -120,15 +113,10 @@ public final class WorkspaceScreen extends Screen {
         clearChildren();
         search = null;
         int toolbarX = TOOLBAR_PADDING;
-        button(
-                "功能目录",
-                toolbarX,
-                TOOLBAR_PADDING,
-                TOOLBAR_BUTTON_WIDTH,
-                () -> toggle(Panel.FEATURES));
-        toolbarX += TOOLBAR_BUTTON_WIDTH + TOOLBAR_PADDING;
-        button("HUD 布局", toolbarX, TOOLBAR_PADDING, TOOLBAR_BUTTON_WIDTH, () -> toggle(Panel.HUD));
-        toolbarX += TOOLBAR_BUTTON_WIDTH + TOOLBAR_PADDING;
+        button("功能", toolbarX, TOOLBAR_PADDING, FEATURE_BUTTON_WIDTH, () -> toggle(Panel.FEATURES));
+        toolbarX += FEATURE_BUTTON_WIDTH + TOOLBAR_PADDING;
+        button("HUD 布局", toolbarX, TOOLBAR_PADDING, HUD_BUTTON_WIDTH, () -> toggle(Panel.HUD));
+        toolbarX += HUD_BUTTON_WIDTH + TOOLBAR_PADDING;
         button(
                 "外观",
                 toolbarX,
@@ -279,7 +267,7 @@ public final class WorkspaceScreen extends Screen {
                     .themes()
                     .keySet()
                     .forEach(id -> rows.add(new Row("主题 " + id, () -> runtime.theme(id))));
-            rows.add(new Row("背景：主题底色", () -> runtime.background(null)));
+            rows.add(new Row("背景：主题底色（默认透明）", () -> runtime.background(null)));
             rows.add(new Row("背景缩略图", () -> toggle(Panel.BACKGROUNDS)));
             if (runtime.localBackgrounds() != null) {
                 rows.add(
@@ -305,13 +293,20 @@ public final class WorkspaceScreen extends Screen {
                 panel == Panel.FEATURES
                         ? MENU_START_Y + BUTTON_HEIGHT + SEARCH_RESULTS_GAP
                         : MENU_START_Y;
-        int pageButtonY = height - BOTTOM_BAR_HEIGHT - PAGE_BOTTOM_GAP - BUTTON_HEIGHT;
+        int pageButtonY = height - bottomBarHeight - PAGE_BOTTOM_GAP - BUTTON_HEIGHT;
         // 按可用高度分页，避免注册项较多时按钮伸入下方栏位。
         int rowHeight = panel == Panel.BACKGROUNDS ? BackgroundButton.HEIGHT : BUTTON_HEIGHT;
         int rowPitch = rowHeight + MENU_ROW_GAP;
         int count = Math.max(1, (pageButtonY - PAGE_TOP_GAP - startY) / rowPitch);
         int maxPage = Math.max(0, (rows.size() - 1) / count);
         page = Math.min(page, maxPage);
+        int visibleRows = Math.min(count, rows.size() - page * count);
+        // 菜单随内容收边；只有确实需要分页时才使用底部的翻页区域。
+        menuBottom = startY + visibleRows * rowPitch + MENU_INSET;
+        if (maxPage > 0) {
+            menuBottom = pageButtonY + BUTTON_HEIGHT + MENU_INSET;
+        }
+        menuBottom = Math.min(menuBottom, height - bottomBarHeight - MENU_BOTTOM_GAP);
         for (int i = page * count; i < Math.min(rows.size(), (page + 1) * count); i++) {
             var row = rows.get(i);
             int rowY = startY + (i - page * count) * rowPitch;
@@ -470,7 +465,16 @@ public final class WorkspaceScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // 绘制顺序固定为背景、业务窗口、HUD 预览和菜单，后绘制的层接收优先输入。
+        // 窗口或固定入口增减后同步可用区域，底部不保留空行。
+        if (bottomBarHeight != runtime.bottomBarHeight()) {
+            updateViewport();
+            rebuildControls();
+        }
+        // 游戏内直接透出已绘制的世界，不叠加原版暗幕，也不修改玩家视角。
+        // 无世界的独立演示仍需清理背景，避免把上一帧的窗口留在透明区域。
+        if (client.world == null) {
+            renderBackground(context);
+        }
         context.fill(0, 0, width, height, runtime.color(BACKGROUND));
         runtime.renderBackground(context, width, height);
         if (runtime.background() != null) {
@@ -478,24 +482,17 @@ public final class WorkspaceScreen extends Screen {
         }
         long now = System.nanoTime();
         var states = runtime.workspace().windowBar();
+        layoutMinimizedWindows(states);
         motions.keySet().removeIf(key -> !runtime.workspace().windows().contains(key));
         displayed.clear();
         for (var state : states) {
             var motion =
                     motions.computeIfAbsent(state.key(), key -> new WindowMotion(state.bounds()));
-            var anchor =
-                    anchors.getOrDefault(
-                            state.key(),
-                            new UiWindowManager.Rect(
-                                    Math.max(0, width / 2 - RESTORE_ANCHOR_WIDTH / 2),
-                                    height - WINDOW_BAR_BOTTOM_GAP - WINDOW_BAR_BUTTON_HEIGHT,
-                                    RESTORE_ANCHOR_WIDTH,
-                                    WINDOW_BAR_BUTTON_HEIGHT));
             boolean immediate =
                     state.key().equals(resizing)
                             || state.key().equals(runtime.workspace().windows().capturedKey());
             motion.target(
-                    state.minimized() ? anchor : state.bounds(),
+                    state.minimized() ? anchors.get(state.key()) : state.bounds(),
                     now,
                     runtime.motion() && !immediate);
             if (state.minimized() && motion.settled(now)) {
@@ -521,21 +518,19 @@ public final class WorkspaceScreen extends Screen {
             }
         }
         clearDepth(context);
-        drawBottom(context);
-        context.fill(0, 0, width, TOOLBAR_HEIGHT, runtime.color(TOOLBAR));
-        context.drawBorder(0, 0, width, TOOLBAR_HEIGHT, runtime.color(TOOLBAR_BORDER));
+        drawMinimizedWindows(context, states, mouseX, mouseY);
         if (panel != Panel.NONE) {
             context.fill(
                     TOOLBAR_PADDING,
                     TOOLBAR_HEIGHT,
                     Math.min(width - TOOLBAR_PADDING, TOOLBAR_PADDING + MENU_WIDTH),
-                    height - BOTTOM_BAR_HEIGHT - MENU_BOTTOM_GAP,
+                    menuBottom,
                     runtime.color(MENU));
             context.drawBorder(
                     TOOLBAR_PADDING,
                     TOOLBAR_HEIGHT,
                     Math.min(width - 2 * TOOLBAR_PADDING, MENU_WIDTH),
-                    Math.max(1, height - BOTTOM_BAR_HEIGHT - MENU_BOTTOM_GAP - TOOLBAR_HEIGHT),
+                    Math.max(1, menuBottom - TOOLBAR_HEIGHT),
                     runtime.color(MENU_BORDER));
         }
         if (sizeTarget != null) {
@@ -566,7 +561,7 @@ public final class WorkspaceScreen extends Screen {
                     textRenderer,
                     textRenderer.trimToWidth(notice, width - 2 * NOTICE_INSET),
                     NOTICE_INSET,
-                    height - BOTTOM_BAR_HEIGHT - NOTICE_BOTTOM_GAP,
+                    height - bottomBarHeight - NOTICE_BOTTOM_GAP,
                     runtime.color(ACCENT));
         }
     }
@@ -578,128 +573,85 @@ public final class WorkspaceScreen extends Screen {
                 org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
     }
 
-    private void drawBottom(DrawContext context) {
-        // 每帧按注册内容重建可点击区域；槽位栏和窗口栏共用横向滚动偏移。
+    private int minimizedWidth(UiWindowManager.WindowState state) {
+        // 标题允许裁切，但始终为恢复、关闭两个独立按钮留下完整宽度。
+        int controlsWidth = MINIMIZED_ACTION_COUNT * WINDOW_ACTION_WIDTH;
+        int preferred =
+                textRenderer.getWidth(runtime.title(state))
+                        + controlsWidth
+                        + 2 * WINDOW_TITLE_PADDING_X;
+        return Math.max(MINIMIZED_MIN_WIDTH, Math.min(MINIMIZED_MAX_WIDTH, preferred));
+    }
+
+    private void layoutMinimizedWindows(List<UiWindowManager.WindowState> states) {
+        // 先约束滚动范围再计算矩形；动画目标、绘制及点击共用这一帧的位置。
         anchors.clear();
-        bottomHits.clear();
-        slotHits.clear();
-        context.fill(0, height - BOTTOM_BAR_HEIGHT, width, height, runtime.color(TOOLBAR));
-        context.enableScissor(0, height - BOTTOM_BAR_HEIGHT, width, height);
-        int slotY = height - BOTTOM_BAR_HEIGHT + SLOT_ROW_PADDING_TOP;
-        int windowY = height - WINDOW_BAR_BOTTOM_GAP - WINDOW_BAR_BUTTON_HEIGHT;
+        var minimized = states.stream().filter(UiWindowManager.WindowState::minimized).toList();
+        int contentWidth = 2 * BAR_PADDING_X;
+        for (var state : minimized) {
+            contentWidth += minimizedWidth(state) + MINIMIZED_GAP;
+        }
+        if (!minimized.isEmpty()) {
+            contentWidth -= MINIMIZED_GAP;
+        }
+        bottomOffset = Math.min(bottomOffset, Math.max(0, contentWidth - width));
         int x = BAR_PADDING_X - bottomOffset;
-        for (var bar : runtime.catalog().slotBars().values()) {
-            for (var slot : bar.slots()) {
-                var content = runtime.slotContent(bar.id(), slot);
-                int sx = x;
-                context.fill(x, slotY, x + SLOT_WIDTH, slotY + SLOT_HEIGHT, runtime.color(HEADER));
-                context.drawTextWithShadow(
-                        textRenderer,
-                        textRenderer.trimToWidth(
-                                content.label(), SLOT_WIDTH - 2 * SLOT_TEXT_PADDING_X),
-                        x + SLOT_TEXT_PADDING_X,
-                        slotY + SLOT_TEXT_PADDING_Y,
-                        runtime.color(TEXT));
-                if (content.item() != null) {
-                    ItemDrawing.draw(
-                            context,
-                            content.item(),
-                            content.item().count(),
-                            x,
-                            slotY,
-                            SLOT_WIDTH,
-                            SLOT_HEIGHT,
-                            runtime::color);
-                }
-                slotHits.add(
-                        new SlotHit(
-                                new UiWindowManager.Rect(x, slotY, SLOT_WIDTH, SLOT_HEIGHT),
-                                bar.id(),
-                                slot));
-                bottomHits.add(
-                        new Hit(
-                                new UiWindowManager.Rect(sx, slotY, SLOT_WIDTH, SLOT_HEIGHT),
-                                content.activate()));
-                x += SLOT_PITCH;
-            }
-            x += SLOT_GROUP_GAP;
-        }
-        int barWidth = x + bottomOffset;
-        x = BAR_PADDING_X - bottomOffset;
-        for (String featureId : runtime.workspace().pinnedFeatures()) {
-            var feature = runtime.catalog().features().get(featureId);
-            int buttonWidth =
-                    Math.min(
-                            WINDOW_BAR_MAX_BUTTON_WIDTH,
-                            textRenderer.getWidth(feature.title()) + WINDOW_BAR_TITLE_EXTRA_WIDTH);
-            context.fill(
-                    x,
-                    windowY,
-                    x + buttonWidth - WINDOW_BAR_BUTTON_GAP,
-                    windowY + WINDOW_BAR_BUTTON_HEIGHT,
-                    runtime.color(HEADER));
-            context.drawTextWithShadow(
-                    textRenderer,
-                    "★ " + feature.title(),
-                    x + WINDOW_BAR_TEXT_PADDING_X,
-                    windowY + WINDOW_BAR_TEXT_PADDING_Y,
-                    runtime.color(ACCENT));
-            bottomHits.add(
-                    new Hit(
-                            new UiWindowManager.Rect(
-                                    x, windowY, buttonWidth, WINDOW_BAR_BUTTON_HEIGHT),
-                            () -> {
-                                if (runtime.catalog()
-                                                .windows()
-                                                .get(feature.windowType())
-                                                .instancePolicy()
-                                        == FrameworkCatalog.InstancePolicy.BY_OBJECT) {
-                                    notice = "该入口需要对象 ID，请由模块操作打开";
-                                } else {
-                                    focused = runtime.open(featureId, null).key();
-                                }
-                            }));
-            x += buttonWidth;
-        }
-        for (var state : runtime.workspace().windowBar()) {
-            int buttonWidth =
-                    Math.min(
-                            WINDOW_BAR_MAX_BUTTON_WIDTH,
-                            textRenderer.getWidth(runtime.title(state))
-                                    + WINDOW_BAR_TITLE_EXTRA_WIDTH);
-            context.fill(
-                    x,
-                    windowY,
-                    x + buttonWidth - WINDOW_BAR_BUTTON_GAP,
-                    windowY + WINDOW_BAR_BUTTON_HEIGHT,
-                    runtime.color(HEADER));
-            context.drawTextWithShadow(
-                    textRenderer,
-                    textRenderer.trimToWidth(
-                            runtime.title(state), buttonWidth - WINDOW_BAR_TEXT_RESERVED_WIDTH),
-                    x + WINDOW_BAR_TEXT_PADDING_X,
-                    windowY + WINDOW_BAR_TEXT_PADDING_Y,
-                    runtime.color(TEXT));
+        int y = height - BAR_PADDING_BOTTOM - WINDOW_HEADER_HEIGHT;
+        for (var state : minimized) {
+            int cardWidth = minimizedWidth(state);
             anchors.put(
-                    state.key(),
-                    new UiWindowManager.Rect(
-                            Math.max(0, Math.min(x, width - buttonWidth)),
-                            windowY,
-                            buttonWidth,
-                            WINDOW_BAR_BUTTON_HEIGHT));
-            bottomHits.add(
-                    new Hit(
-                            new UiWindowManager.Rect(
-                                    x, windowY, buttonWidth, WINDOW_BAR_BUTTON_HEIGHT),
-                            () -> {
-                                runtime.workspace().windows().restore(state.key());
-                                focused = state.key();
-                            }));
-            x += buttonWidth;
+                    state.key(), new UiWindowManager.Rect(x, y, cardWidth, WINDOW_HEADER_HEIGHT));
+            x += cardWidth + MINIMIZED_GAP;
         }
-        context.disableScissor();
-        bottomOffset =
-                Math.min(bottomOffset, Math.max(0, Math.max(barWidth, x + bottomOffset) - width));
+    }
+
+    private void drawMinimizedWindows(
+            DrawContext context, List<UiWindowManager.WindowState> states, int mouseX, int mouseY) {
+        // 没有缩小窗口就不绘制底部内容；正常窗口不会同时出现第二个页签。
+        if (anchors.isEmpty()) {
+            return;
+        }
+        context.enableScissor(0, height - bottomBarHeight, width, height);
+        try {
+            for (var state : states) {
+                var bounds = anchors.get(state.key());
+                if (bounds != null) {
+                    WindowChrome.render(context, runtime, state, bounds, true, mouseX, mouseY);
+                }
+            }
+        } finally {
+            context.disableScissor();
+        }
+    }
+
+    private void clickMinimizedWindow(double x, double y) {
+        // 卡片标题不触发操作，只有各自的恢复和关闭按钮接收左键。
+        for (var state : runtime.workspace().windowBar()) {
+            var bounds = anchors.get(state.key());
+            if (!state.minimized() || bounds == null || !bounds.contains(x, y)) {
+                continue;
+            }
+            var action = WindowChrome.hit(state, bounds, x, y);
+            if (action == WindowChrome.Action.RESTORE) {
+                runtime.cancelInput();
+                runtime.workspace().windows().restore(state.key());
+                focused = state.key();
+            } else if (action == WindowChrome.Action.CLOSE) {
+                closeWindow(state.key());
+            }
+            return;
+        }
+    }
+
+    private void closeWindow(UiWindowManager.WindowKey key) {
+        // 两种关闭入口走同一清理路径，确保订阅、拖动和已保存布局不会遗漏。
+        runtime.cancelInput();
+        runtime.savePreferences();
+        runtime.workspace().windows().close(key);
+        if (key.equals(focused)) {
+            focused = null;
+        }
+        pressed = null;
     }
 
     @Override
@@ -731,17 +683,9 @@ public final class WorkspaceScreen extends Screen {
         if (y < TOOLBAR_HEIGHT || panel != Panel.NONE || sizeTarget != null) {
             return super.mouseClicked(x, y, button);
         }
-        if (y >= height - BOTTOM_BAR_HEIGHT) {
+        if (y >= height - bottomBarHeight) {
             if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-                bottomHits.stream()
-                        .filter(hit -> hit.bounds.contains(x, y))
-                        .findFirst()
-                        .ifPresent(hit -> hit.action.run());
-            } else if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-                slotHits.stream()
-                        .filter(hit -> hit.bounds().contains(x, y))
-                        .findFirst()
-                        .ifPresent(hit -> runtime.slotContent(hit.bar(), hit.slot()).clear().run());
+                clickMinimizedWindow(x, y);
             }
             return true;
         }
@@ -768,11 +712,9 @@ public final class WorkspaceScreen extends Screen {
             } else {
                 runtime.cancelInput();
                 switch (action) {
-                    case CLOSE -> {
-                        runtime.savePreferences();
-                        runtime.workspace().windows().close(focused);
-                        focused = null;
-                    }
+                    case CLOSE -> closeWindow(focused);
+                    case RESTORE ->
+                            throw new IllegalStateException("restore belongs to minimized windows");
                     case MINIMIZE -> {
                         runtime.workspace().windows().minimize(focused);
                         focused = null;
@@ -854,18 +796,10 @@ public final class WorkspaceScreen extends Screen {
             // 释放按当前位置分发而不是按来源窗口分发，窗口遮挡和底栏命中都只有一个落点。
             pressed = null;
             try {
-                if (panel == Panel.NONE && y >= height - BOTTOM_BAR_HEIGHT) {
-                    slotHits.stream()
-                            .filter(hit -> hit.bounds().contains(x, y))
-                            .findFirst()
-                            .ifPresent(
-                                    hit -> {
-                                        var content = runtime.slotContent(hit.bar(), hit.slot());
-                                        if (content.accepts().test(runtime.drag().current())) {
-                                            runtime.drag().consume(content.drop());
-                                        }
-                                    });
-                } else if (panel == Panel.NONE && y >= TOOLBAR_HEIGHT) {
+                if (panel == Panel.NONE
+                        && sizeTarget == null
+                        && y >= TOOLBAR_HEIGHT
+                        && y < height - bottomBarHeight) {
                     var target = hitWindow(x, y);
                     var targetView = target == null ? null : runtime.view(target.key());
                     if (targetView != null) {
@@ -901,12 +835,12 @@ public final class WorkspaceScreen extends Screen {
             runtime.drag().count(payload.count() + (int) amount);
             return true;
         }
-        // 下方区域横向滚动注册栏位；窗口内容滚动按鼠标所在的最上层窗口分发。
+        // 只有最小化窗口溢出时才横向滚动；其余滚动交给鼠标所在的窗口内容。
         if (panel != Panel.NONE || sizeTarget != null) {
             return super.mouseScrolled(x, y, amount);
         }
-        if (y >= height - BOTTOM_BAR_HEIGHT) {
-            bottomOffset = Math.max(0, bottomOffset - (int) (amount * SLOT_PITCH));
+        if (y >= height - bottomBarHeight) {
+            bottomOffset = Math.max(0, bottomOffset - (int) (amount * MINIMIZED_SCROLL_STEP));
             return true;
         }
         var state = hitWindow(x, y);
@@ -1016,8 +950,4 @@ public final class WorkspaceScreen extends Screen {
             this(label, action, null);
         }
     }
-
-    private record Hit(UiWindowManager.Rect bounds, Runnable action) {}
-
-    private record SlotHit(UiWindowManager.Rect bounds, String bar, FrameworkCatalog.Slot slot) {}
 }

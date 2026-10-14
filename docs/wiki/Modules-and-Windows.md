@@ -31,9 +31,9 @@
 | 按对象 ID | 容器、物品详情 | 同对象聚焦，不同对象分别创建 |
 | 按服务端会话 | 交易、制作工作站 | 校验会话有效性，再显示内容 |
 
-主屏从注册项生成目录和窗口栏。扩展模块不修改全局 tab 常量，也不直接接管其他窗口的输入。窗口的可见入口不是业务授权；服务端仍需检查每个操作。
+主屏从注册项生成功能目录；底部只在窗口最小化时生成恢复／关闭卡片。扩展模块不修改全局 tab 常量，也不直接接管其他窗口的输入。窗口的可见入口不是业务授权；服务端仍需检查每个操作。
 
-已实现的 `WorkspaceController.features(query)` 按分类和标题返回目录，`openFeature(featureId, objectId, bounds)` 使用 `SINGLETON` 或 `BY_OBJECT` 窗口策略创建或聚焦窗口，`windowBar()` 返回当前窗口，`pinFeature()` 管理固定入口。`disconnect()` 清理当前窗口但保留固定入口。Fabric 适配层提供目录搜索／分页、窗口拖动、关闭、最小化／恢复及动态窗口栏。`BY_OBJECT` 功能由模块通过 `ClientRuntime.open(featureId, objectId)` 打开；目录无法替模块选择业务对象。目录提供固定／取消固定入口；右下角拖动可调整窗口尺寸；Ctrl+Tab 循环窗口。固定入口、窗口外框及 HUD／外观偏好可持久化，外观菜单可恢复窗口布局。
+已实现的 `WorkspaceController.features(query)` 先将固定入口置顶，再按分类和标题返回目录，`openFeature(featureId, objectId, bounds)` 使用 `SINGLETON` 或 `BY_OBJECT` 窗口策略创建或聚焦窗口，`windowBar()` 返回当前窗口，`pinFeature()` 管理固定入口。`disconnect()` 清理当前窗口但保留固定入口。Fabric 适配层提供目录搜索／分页、窗口拖动、关闭、最小化／恢复及最小化窗口卡片。`BY_OBJECT` 功能由模块通过 `ClientRuntime.open(featureId, objectId)` 打开；目录无法替模块选择业务对象。目录提供固定／取消固定入口；右下角拖动可调整窗口尺寸；Ctrl+Tab 循环窗口。固定入口、窗口外框及 HUD／外观偏好可持久化，外观菜单可恢复窗口布局。
 
 ## 子 JAR 的公开入口
 
@@ -81,6 +81,16 @@
 ## 窗口管理操作
 
 标题栏从左至右为尺寸、最小化、固定、关闭。尺寸编辑接受正整数，非法输入标红并保留当前尺寸；Enter 应用，Escape 取消。最小尺寸和视口约束由窗口管理器统一执行。
+
+### 自动尺寸与内容排布
+
+`UiWindowDefinition(windowType, templateId, minimumWidth, minimumHeight, preferredWidth, preferredHeight, capabilities)` 分别声明紧凑下限和推荐尺寸，单位均为 Minecraft GUI 逻辑像素。推荐尺寸不能低于最小尺寸。原五参数构造器保留，推荐尺寸默认为宽 `max(280, minimumWidth)`、高 `max(160, minimumHeight)`。
+
+没有已保存布局时，`ClientRuntime.open` 使用自动模式；直接调用 `openOrFocus` 或 `openFeature` 时传入 `null` 外框也采用该模式。窗口在视口允许范围内接近推荐尺寸，为顶部入口与边缘留位；改变游戏窗口大小或 GUI 缩放后重新计算。视口连最小尺寸也容不下时，优先保证外框可见。框架不会修改玩家的全局 GUI 缩放选项。
+
+玩家拖动或调整尺寸后进入手动模式，小屏暂时夹紧，大屏恢复期望尺寸。自动计算出的外框不写成固定偏好，手动布局才持久化；外观菜单“恢复窗口布局”或 `ClientRuntime.resetWindowLayout()` 恢复自动模式，并保留现有组件与订阅。旧版本保存的外框按手动偏好处理，需要重置后才恢复自动尺寸。
+
+外框适配和内容排布各有职责。模块可用 `dev.kizuna.inventoryui.client.component.ResponsiveLayout` 包装 XML 组件树：构造参数为原组件与 `BiConsumer<Integer, Integer>`，内容区逻辑宽高变化时，在子树布局前回调模块。模块按实际余量安排换行、滚动及列宽，回调中修改原有组件，不重建选择、镜头或业务会话。owo 的 `fill(百分比)` 依据父空间计算，不会自动扣掉固定宽度的兄弟组件；混合固定侧栏时须先扣侧栏和间距，再分配列宽。
 
 普通窗口可用标题栏锁定按钮或 `runtime.pinWindow(window.key(), true)` 固定到 HUD。关闭工作台后，同一组件树继续绘制，隐藏管理按钮并停用交互；不会重新调用工厂或重复建立订阅。最小化暂时隐藏固定窗口，恢复保留固定状态。明确关窗和断线释放该实例；重连不会自动重开业务会话。工位 `STATION` 不允许固定，系统窗口不允许用户修改布局。
 

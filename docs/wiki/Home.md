@@ -14,6 +14,7 @@
 | 添加 HUD、快捷栏和动态槽位 | [HUD 与槽位栏](HUD-and-Slot-Bars.md) |
 | 注册主题、背景和资源 | [主题与背景](Themes-and-Backgrounds.md) |
 | 定义服务器输入和客户端请求 | [服务器通信](Server-Communication.md) |
+| 多个业务服务端 JAR 共用通道 | [服务端模块与统一路由](Server-Modules.md) |
 | 排查缺失模块、版本和状态问题 | [故障排查](Troubleshooting.md) |
 | 查询发布状态与升级规则 | [版本与兼容性](Versioning-and-Compatibility.md) |
 | 更新文档与发布 Wiki | [文档维护](Documentation-Maintenance.md) |

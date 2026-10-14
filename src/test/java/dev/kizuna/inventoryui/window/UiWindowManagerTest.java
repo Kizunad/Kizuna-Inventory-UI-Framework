@@ -13,6 +13,31 @@ import java.util.Set;
 
 class UiWindowManagerTest {
     @Test
+    void automaticWindowsFollowViewportUntilUserChoosesBounds() {
+        // 初始小屏和后续 GUI 缩放都适配；手动设置后的期望尺寸不被自动策略覆盖。
+        var definition = new UiWindowDefinition("test:responsive", "test:responsive", 280, 180,
+                580, 400, Set.of(UiWindowDefinition.Capability.WINDOW));
+        var manager = new UiWindowManager(360, 250);
+        var key = manager.key(definition.windowType(), "one");
+        var state = manager.openOrFocus(definition, key, null);
+        assertEquals(new UiWindowManager.Rect(8, 38, 344, 204), state.bounds());
+        assertTrue(state.automaticBounds());
+        manager.resizeViewport(960, 540);
+        assertEquals(new UiWindowManager.Rect(190, 38, 580, 400), state.bounds());
+        assertTrue(manager.resize(key, "700", "450"));
+        assertFalse(state.automaticBounds());
+        manager.resizeViewport(320, 240);
+        manager.resizeViewport(1280, 720);
+        assertEquals(700, state.bounds().width());
+        assertEquals(450, state.bounds().height());
+        manager.restorePreferredBounds(key);
+        assertTrue(state.automaticBounds());
+        assertEquals(580, state.bounds().width());
+        assertThrows(IllegalArgumentException.class, () -> new UiWindowDefinition(
+                "test:bad", "test:bad", 280, 180, 200, 100, Set.of()));
+    }
+
+    @Test
     void presentationChangesKeepScopeAndPinUntilExplicitClose() {
         var manager = new UiWindowManager(300, 200);
         var key = manager.key("item-inspect", "presentation");

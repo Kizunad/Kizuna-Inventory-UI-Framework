@@ -42,7 +42,7 @@ public final class DemoClient implements ClientModInitializer {
     private static final int OPEN_CASE_TICK = 90;
     private static final int TRANSFER_TICK = 100;
     private static final int SPLIT_TICK = 110;
-    private static final int BIND_TICK = 120;
+    private static final int BIND_TICK = 140;
     private static final int CAPTURE_FRAMEWORK_TICK = 130;
     private static final int OPEN_COMPONENTS_TICK = 132;
     private static final int CAPTURE_COMPONENTS_TICK = 145;
@@ -51,6 +51,9 @@ public final class DemoClient implements ClientModInitializer {
     private static final int PIN_WINDOW_TICK = 170;
     private static final int MINIMIZE_WINDOW_TICK = 180;
     private static final int RESTORE_WINDOW_TICK = 190;
+    private static final int CAPTURE_MINIMIZED_TICK = 185;
+    private static final int MINIMIZE_COMPONENTS_TICK = 202;
+    private static final int CLOSE_MINIMIZED_TICK = 206;
     private static final int CAPTURE_CHROME_TICK = 200;
     private static final int OPEN_BACKGROUNDS_TICK = 210;
     private static final int CAPTURE_BACKGROUNDS_TICK = 220;
@@ -63,8 +66,10 @@ public final class DemoClient implements ClientModInitializer {
     private static final int CASE_WINDOW_Y = 60;
     private static final int FRUIT_COLUMN = 3;
     private static final int FRUIT_ROW = 1;
-    private static final int SLOT_BIND_X = 12;
-    private static final int SLOT_BIND_BOTTOM_OFFSET = 40;
+    // 第一张卡片是前面缩小的共享状态窗口，本段验证第二张卡片，确保操作不串到相邻窗口。
+    private static final int MINIMIZED_RESTORE_X = 240;
+    private static final int MINIMIZED_CLOSE_X = 258;
+    private static final int MINIMIZED_Y_FROM_BOTTOM = 13;
     private static final int COMPONENT_WINDOW_WIDTH = 245;
     private static final int COMPONENT_WINDOW_HEIGHT = 245;
 
@@ -87,6 +92,7 @@ public final class DemoClient implements ClientModInitializer {
     private UiWindowManager.WindowState inventory;
     private UiWindowManager.WindowState status;
     private UiWindowManager.WindowState storage;
+    private UiWindowManager.WindowState components;
 
     @Override
     public void onInitializeClient() {
@@ -296,7 +302,7 @@ public final class DemoClient implements ClientModInitializer {
                                 "split must create two authoritative stacks");
                     }
                     if (opened && smoke && ticks == BIND_TICK) {
-                        // 底栏消费的是绑定意图，库存数量与位置不随本地绑定改变。
+                        // 注册槽位由模块组件承载；移除自动底栏后仍应收到同样的绑定意图。
                         var before = demo().snapshot();
                         var screen = client.currentScreen;
                         screen.mouseClicked(
@@ -304,12 +310,12 @@ public final class DemoClient implements ClientModInitializer {
                                 storage.bounds().y() + GRID_GRAB_Y,
                                 GLFW.GLFW_MOUSE_BUTTON_LEFT);
                         screen.mouseReleased(
-                                SLOT_BIND_X,
-                                client.getWindow().getScaledHeight() - SLOT_BIND_BOTTOM_OFFSET,
+                                components.bounds().x() + GRID_GRAB_X,
+                                components.bounds().y() + GRID_GRAB_Y,
                                 GLFW.GLFW_MOUSE_BUTTON_LEFT);
                         require(
                                 demo().hasBinding(),
-                                "registered bottom slot must receive drag payload");
+                                "registered slot component must receive drag payload");
                         require(
                                 demo().snapshot().equals(before),
                                 "binding must not move inventory items");
@@ -323,7 +329,7 @@ public final class DemoClient implements ClientModInitializer {
                     }
                     if (opened && smoke && ticks == OPEN_COMPONENTS_TICK) {
                         var runtime = InventoryUiClient.runtime();
-                        var components = runtime.open("demo:components", null);
+                        components = runtime.open("demo:components", null);
                         runtime.workspace()
                                 .windows()
                                 .resize(
@@ -384,13 +390,46 @@ public final class DemoClient implements ClientModInitializer {
                                 inventory.minimized() && !inventory.hudVisible(),
                                 "minimize must also hide pinned HUD");
                     }
+                    if (opened && smoke && ticks == CAPTURE_MINIMIZED_TICK) {
+                        ScreenshotRecorder.saveScreenshot(
+                                client.runDirectory,
+                                "minimized-windows.png",
+                                client.getFramebuffer(),
+                                message -> {});
+                    }
                     if (opened && smoke && ticks == RESTORE_WINDOW_TICK) {
-                        var runtime = InventoryUiClient.runtime();
+                        // 直接点击底部恢复按钮，验证布局与命中区，而不是绕过界面调用 open。
+                        click(
+                                client.currentScreen,
+                                MINIMIZED_RESTORE_X,
+                                client.getWindow().getScaledHeight() - MINIMIZED_Y_FROM_BOTTOM);
                         require(
-                                runtime.open("demo:inventory", null) == inventory,
-                                "restore must retain the same component instance");
+                                !inventory.minimized() && !inventory.scope().isClosed(),
+                                "bottom restore must keep the same live window");
                         require(inventory.hudVisible(), "restore must retain the HUD pin");
+                        require(
+                                status.minimized(),
+                                "restoring a card must not restore its neighbor");
                         verifyLocalBackground(client);
+                    }
+                    if (opened && smoke && ticks == MINIMIZE_COMPONENTS_TICK) {
+                        InventoryUiClient.runtime()
+                                .workspace()
+                                .windows()
+                                .minimize(components.key());
+                    }
+                    if (opened && smoke && ticks == CLOSE_MINIMIZED_TICK) {
+                        // 最小化卡片的关闭按钮必须真正释放窗口及订阅，不能只移除卡片。
+                        click(
+                                client.currentScreen,
+                                MINIMIZED_CLOSE_X,
+                                client.getWindow().getScaledHeight() - MINIMIZED_Y_FROM_BOTTOM);
+                        require(
+                                components.scope().isClosed(),
+                                "bottom close must release window scope");
+                        require(
+                                !status.scope().isClosed(),
+                                "closing a card must not close its neighbor");
                     }
                     if (opened && smoke && ticks == CAPTURE_CHROME_TICK) {
                         ScreenshotRecorder.saveScreenshot(
@@ -401,7 +440,7 @@ public final class DemoClient implements ClientModInitializer {
                     }
                     if (opened && smoke && ticks == OPEN_BACKGROUNDS_TICK) {
                         // 外观列表第六项是缩略图入口，打开后由真实资源绘制卡片。
-                        click(client.currentScreen, 185, 12);
+                        click(client.currentScreen, 140, 12);
                         click(client.currentScreen, 70, 162);
                     }
                     if (opened && smoke && ticks == CAPTURE_BACKGROUNDS_TICK) {
