@@ -16,6 +16,7 @@ import java.util.Set;
 class WorkspaceControllerTest {
     @Test
     void directoryOpensAndFocusesSingletonAndObjectWindows() {
+        // 隐藏详情入口仍可由模块打开，并与可见入口共享同一个窗口实例和生命周期。
         var singleton =
                 new FrameworkCatalog.Window(
                         new UiWindowDefinition(
@@ -52,18 +53,37 @@ class WorkspaceControllerTest {
                                                 "Container",
                                                 "Inventory",
                                                 "example:container_icon",
-                                                "example:container"))));
+                                                "example:container"),
+                                        new FrameworkCatalog.Feature(
+                                                "example:details_entry",
+                                                "Details",
+                                                "Inventory",
+                                                "example:container_icon",
+                                                "example:container",
+                                                false))));
         var workspace = new WorkspaceController(catalog, 600, 400);
         var bounds = new UiWindowManager.Rect(10, 10, 200, 120);
         assertEquals("example:container_entry", workspace.features("invent").get(0).id());
+        assertEquals(1, workspace.features("invent").size());
+        assertEquals(0, workspace.features("details").size());
         var first = workspace.openFeature("example:settings_entry", null, bounds);
         assertSame(first, workspace.openFeature("example:settings_entry", "ignored", bounds));
         var containerA = workspace.openFeature("example:container_entry", "a", bounds);
         assertSame(containerA, workspace.openFeature("example:container_entry", "a", bounds));
+        assertSame(containerA, workspace.openFeature("example:details_entry", "a", bounds));
         assertNotSame(containerA, workspace.openFeature("example:container_entry", "b", bounds));
         workspace.pinFeature("example:container_entry", true);
         workspace.disconnect();
         assertEquals(0, workspace.windowBar().size());
         assertEquals(List.of("example:container_entry"), workspace.pinnedFeatures());
+        // 权威投影改变后菜单立即变化，直接入口也不能绕过权限。
+        var allowed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        workspace.featureAccess("example:container_entry", allowed::get);
+        assertEquals(0, workspace.features("invent").size());
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> workspace.openFeature("example:container_entry", "a", bounds));
+        allowed.set(true);
+        assertEquals(1, workspace.features("invent").size());
+        workspace.openFeature("example:container_entry", "a", bounds);
     }
 }

@@ -6,7 +6,7 @@
   "description": "库存 UI 模块的统一服务端协议、会话和消息路由",
   "authors": ["Kizunad"],
   "license": "MIT",
-  "environment": "server",
+  "environment": "*",
   "entrypoints": {"main": ["dev.kizuna.inventoryui.server.fabric.InventoryUiServer"]},
   "depends": {
     "java": ">=17",

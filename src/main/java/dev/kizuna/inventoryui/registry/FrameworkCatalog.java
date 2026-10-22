@@ -157,9 +157,20 @@ public final class FrameworkCatalog {
         String id();
     }
 
+    /** 功能身份独立于菜单可见性；详情入口可由模块打开而不占用主目录。 */
     public record Feature(
-            String id, String title, String category, String iconId, String windowType)
+            String id,
+            String title,
+            String category,
+            String iconId,
+            String windowType,
+            boolean visibleInMenu)
             implements Entry {
+        public Feature(String id, String title, String category, String iconId, String windowType) {
+            // 原有五参数注册保持菜单可见，仅附属详情入口需要显式隐藏。
+            this(id, title, category, iconId, windowType, true);
+        }
+
         public Feature {
             // 展示文案与稳定身份分开校验，窗口类型引用随后在完整目录中解析。
             id = namespaced(id);

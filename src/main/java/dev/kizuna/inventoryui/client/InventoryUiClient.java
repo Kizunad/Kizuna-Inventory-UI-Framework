@@ -78,12 +78,16 @@ public final class InventoryUiClient implements ClientModInitializer {
                 });
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> runtime.connected());
         ClientPlayConnectionEvents.DISCONNECT.register(
-                (handler, client) -> {
+                (handler, client) -> client.execute(() -> {
+                    // Netty 断线也可能触发回调；窗口释放和模块通知必须与渲染串行。
+                    if (client.getNetworkHandler() != null && client.getNetworkHandler() != handler) {
+                        return;
+                    }
                     if (client.currentScreen instanceof WorkspaceScreen) {
                         client.setScreen(null);
                     }
                     runtime.disconnected();
-                });
+                }));
         HudRenderCallback.EVENT.register(
                 (context, delta) -> {
                     // 库存页面只绘制自己的内容；工作台在布局面板内显式绘制 HUD 预览。

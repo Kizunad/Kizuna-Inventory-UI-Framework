@@ -15,6 +15,21 @@ public final class WorkspaceController {
     private final FrameworkCatalog catalog;
     private final UiWindowManager windows;
     private final Set<String> pinnedFeatures = new LinkedHashSet<>();
+    private final java.util.Map<String, java.util.function.BooleanSupplier> featureAccess = new java.util.HashMap<>();
+
+    public void featureAccess(String featureId, java.util.function.BooleanSupplier access) {
+        // 内容提供当前连接的业务权限；菜单与直接打开共用同一个实时判定。
+        if (!catalog.features().containsKey(featureId) || featureAccess.containsKey(featureId)) {
+            throw new IllegalArgumentException("unknown or already guarded feature: " + featureId);
+        }
+        featureAccess.put(featureId, Objects.requireNonNull(access));
+    }
+
+    public boolean canOpen(String featureId) {
+        // 未设权限的通用功能维持公开；已设权限每次读取，不缓存解锁事实。
+        var access = featureAccess.get(featureId);
+        return access == null || access.getAsBoolean();
+    }
 
     public WorkspaceController(FrameworkCatalog catalog, int width, int height) {
         this.catalog = Objects.requireNonNull(catalog, "catalog must not be null");
@@ -22,12 +37,14 @@ public final class WorkspaceController {
     }
 
     public List<FrameworkCatalog.Feature> features(String query) {
-        // 固定入口在功能菜单置顶，底部只用于最小化窗口；同名入口按稳定 ID 排序。
+        // 详情入口不进入主菜单；可见入口按固定偏好、分类及稳定 ID 排序。
         String needle =
                 Objects.requireNonNull(query, "query must not be null")
                         .strip()
                         .toLowerCase(Locale.ROOT);
         return catalog.features().values().stream()
+                .filter(FrameworkCatalog.Feature::visibleInMenu)
+                .filter(feature -> canOpen(feature.id()))
                 .filter(
                         feature ->
                                 feature.title().toLowerCase(Locale.ROOT).contains(needle)
@@ -49,6 +66,9 @@ public final class WorkspaceController {
         FrameworkCatalog.Feature feature = catalog.features().get(featureId);
         if (feature == null) {
             throw new IllegalArgumentException("unknown feature: " + featureId);
+        }
+        if (!canOpen(featureId)) {
+            throw new IllegalStateException("feature access denied: " + featureId);
         }
         FrameworkCatalog.Window window = catalog.windows().get(feature.windowType());
         String identity =

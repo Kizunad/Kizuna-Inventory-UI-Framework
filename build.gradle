@@ -33,6 +33,7 @@ dependencies {
     modImplementation 'net.fabricmc:fabric-loader:0.16.10'
     modImplementation 'net.fabricmc.fabric-api:fabric-api:0.92.3+1.20.1'
     modImplementation 'io.wispforest:owo-lib:0.11.2+1.20'
+    modImplementation project(':server')
     api "com.google.protobuf:protobuf-java:${protobufVersion}"
     include "com.google.protobuf:protobuf-java:${protobufVersion}"
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
@@ -44,8 +45,7 @@ test {
 }
 
 sourceSets {
-    // 客户端产物同时承载内置服务器路由；公共 proto 仍只生成一次。
-    main.java.srcDir 'server/src/main/java'
+    // 逻辑服务器由独立 common 产物提供；客户端不再复制服务端入口。
     demo {
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
         runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath

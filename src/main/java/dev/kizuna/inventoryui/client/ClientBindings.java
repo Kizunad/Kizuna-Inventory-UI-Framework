@@ -28,6 +28,12 @@ public final class ClientBindings {
     final Map<String, Function<FrameworkCatalog.Slot, SlotContent>> bars = new LinkedHashMap<>();
     private boolean frozen;
     final List<UiWire.Contract<?>> messages = new ArrayList<>();
+    final Map<String, java.util.function.BooleanSupplier> featureAccess = new LinkedHashMap<>();
+
+    public void featureAccess(String featureId, java.util.function.BooleanSupplier access) {
+        // 权限只允许绑定本模块声明的功能，不能覆盖其他附属的菜单。
+        add(featureId, FrameworkCatalog.Feature.class, featureAccess, access);
+    }
 
     public void message(UiWire.Contract<?> contract) {
         // 消息归属精确到模块，不允许同命名空间的另一个模块接管接收器。

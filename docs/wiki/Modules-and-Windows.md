@@ -1,5 +1,7 @@
 # 模块与窗口扩展
 
+模块可通过 `ClientBindings.featureAccess(featureId, BooleanSupplier)` 绑定已声明功能的动态业务权限。工作台菜单查询和 `openFeature` 共用当前判定；返回 false 时隐藏菜单并拒绝直接打开。原有 `visibleInMenu=false` 仍只表示详情入口不进入菜单，不等同于权限。模块应在权威权限撤销时关闭自己的活动窗口并清理订阅；框架不解释具体玩法。
+
 > 状态：部分实现。`FrameworkCatalog`、`WorkspaceController` 和迁入的 `UiWindowManager` 可调用；`ClientModule`、`ClientBindings`、`ClientRuntime` 与 `WorkspaceScreen` 已接入 Fabric/owo。
 
 当前 Java 类型位于 `dev.kizuna.inventoryui.registry.FrameworkCatalog`、`dev.kizuna.inventoryui.workspace.WorkspaceController` 和 `dev.kizuna.inventoryui.window`。一个模块用 `FrameworkCatalog.Module.of(id, dependencies, entries...)` 声明。条目可为 `Window`、`Feature`、`Hud`、`SlotBar`、`Theme` 、`Background` 或 `SvgAsset`；`FrameworkCatalog.build(modules)` 按依赖顺序校验并生成不可变目录。缺失依赖、环、重复 ID、越界命名空间或功能引用不存在的窗口都会在构建目录时抛出异常，不会返回半成品。
@@ -33,7 +35,7 @@
 
 主屏从注册项生成功能目录；底部只在窗口最小化时生成恢复／关闭卡片。扩展模块不修改全局 tab 常量，也不直接接管其他窗口的输入。窗口的可见入口不是业务授权；服务端仍需检查每个操作。
 
-已实现的 `WorkspaceController.features(query)` 先将固定入口置顶，再按分类和标题返回目录，`openFeature(featureId, objectId, bounds)` 使用 `SINGLETON` 或 `BY_OBJECT` 窗口策略创建或聚焦窗口，`windowBar()` 返回当前窗口，`pinFeature()` 管理固定入口。`disconnect()` 清理当前窗口但保留固定入口。Fabric 适配层提供目录搜索／分页、窗口拖动、关闭、最小化／恢复及最小化窗口卡片。`BY_OBJECT` 功能由模块通过 `ClientRuntime.open(featureId, objectId)` 打开；目录无法替模块选择业务对象。目录提供固定／取消固定入口；右下角拖动可调整窗口尺寸；Ctrl+Tab 循环窗口。固定入口、窗口外框及 HUD／外观偏好可持久化，外观菜单可恢复窗口布局。
+已实现的 `WorkspaceController.features(query)` 先将固定入口置顶，再按分类和标题返回目录，`openFeature(featureId, objectId, bounds)` 使用 `SINGLETON` 或 `BY_OBJECT` 窗口策略创建或聚焦窗口，`windowBar()` 返回当前窗口，`pinFeature()` 管理固定入口。`disconnect()` 清理当前窗口但保留固定入口。Fabric 适配层提供目录搜索／分页、窗口拖动、关闭、最小化／恢复及最小化窗口卡片。`BY_OBJECT` 功能由模块通过 `ClientRuntime.open(featureId, objectId)` 打开；目录无法替模块选择业务对象。功能菜单每项只提供打开入口，已移除“固定／取消固定”按钮；既有 `pinFeature()` API 和保存的排序偏好保留。窗口标题栏的 HUD 固定功能独立保留。右下角拖动可调整窗口尺寸；Ctrl+Tab 循环窗口。固定入口、窗口外框及 HUD／外观偏好可持久化，外观菜单可恢复窗口布局。
 
 ## 子 JAR 的公开入口
 
@@ -79,6 +81,8 @@
 完整职责清单及偏好行为见[框架边界](Framework-Boundaries.md)。
 
 ## 窗口管理操作
+
+详情或操作浮窗可用六参数 `Feature(id, title, category, iconId, windowType, false)` 注册。最后一个参数 `visibleInMenu` 仅控制功能菜单显示；模块仍通过 `ClientRuntime.open(featureId, objectId)` 打开，标题、实例策略、尺寸偏好和 scope 清理与普通入口一致。原五参数构造器保持菜单可见。隐藏入口不是权限控制，业务请求仍由服务端鉴权。
 
 标题栏从左至右为尺寸、最小化、固定、关闭。尺寸编辑接受正整数，非法输入标红并保留当前尺寸；Enter 应用，Escape 取消。最小尺寸和视口约束由窗口管理器统一执行。
 

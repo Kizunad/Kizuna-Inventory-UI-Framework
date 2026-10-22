@@ -152,7 +152,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                     });
             addDrawableChild(search);
             for (var feature : runtime.workspace().features(query)) {
-                // 普通目录没有具体对象上下文，按对象分实例的入口需要模块提供对象 ID。
+                // 每个功能只提供打开入口；按对象分实例的功能仍需模块提供具体对象 ID。
                 var policy = runtime.catalog().windows().get(feature.windowType()).instancePolicy();
                 rows.add(
                         new Row(
@@ -164,15 +164,6 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                                     }
                                     focused = runtime.open(feature.id(), null).key();
                                     panel = Panel.NONE;
-                                    rebuildControls();
-                                }));
-                boolean pinned = runtime.workspace().pinnedFeatures().contains(feature.id());
-                rows.add(
-                        new Row(
-                                (pinned ? "取消固定 " : "固定 ") + feature.title(),
-                                () -> {
-                                    runtime.workspace().pinFeature(feature.id(), !pinned);
-                                    runtime.savePreferences();
                                     rebuildControls();
                                 }));
             }

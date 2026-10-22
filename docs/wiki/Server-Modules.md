@@ -1,5 +1,7 @@
 # 服务端模块与统一路由
 
+`kizuna_inventory_ui_server` 是 common 环境产物，专用服务器与客户端进程的整合服务器均加载。客户端 `kizuna_inventory_ui` 强制依赖该产物，客户端 JAR 不再复制服务端源码或重复注册 `InventoryUiServer`。开发运行通过 Gradle 子项目依赖装入同一服务端 API；实际安装须同时放入客户端与 server JAR。
+
 > 适用：增加统一路由后的 `0.1.0-SNAPSHOT` 源码版本。Java API 尚未冻结；wire 保持 v2，公共 `.proto` 字段未改变。两端分别安装，接入时固定同一源码版本。
 
 ## 安装与职责
@@ -8,7 +10,7 @@
 
 公共生成类及 Protobuf 运行库由每端的框架产物提供。业务子 JAR 只生成自己的 `.proto`；公共协议目录用作 import，不重新打包 `dev.kizuna.inventoryui.protocol.pb` 或另一份 Protobuf。开发时对服务端框架使用 Loom `modImplementation files(...)`，编译期另声明 `compileOnly 'com.google.protobuf:protobuf-java:4.36.2'`。
 
-2026-10-14 源码起，客户端框架 JAR 同时包含内置服务器路由，在 `main` 初始化服务器事件；单机不额外安装专用服务端 JAR。业务客户端 JAR 也需包含逻辑服务端，并登记同一个 `kizuna_inventory_ui_server` 入口。两种环境共用服务端源码，每次启动世界重新建立模块目录，关闭世界清理连接。
+当前 common 服务端 JAR 在 `main` 初始化服务器事件，客户端强制依赖并加载同一产物。业务 common JAR 登记 `kizuna_inventory_ui_server` 入口即可供单机与专服使用，无需把逻辑服务端复制进客户端 JAR。每次启动世界重新建立模块目录，关闭世界清理连接。
 
 公共入口只注册一次 `kizuna_inventory_ui:message`。多个业务模块共享 HELLO／ACCEPT，框架按模块、消息、版本分发，并检查方向及描述符。身份对应的数据访问、权限、事务、幂等和权威状态由模块实现。请求 UUID 不是业务幂等键。
 
@@ -18,7 +20,7 @@
 
 ```json
 {
-  "environment": "server",
+  "environment": "*",
   "entrypoints": {
     "kizuna_inventory_ui_server": ["example.ExampleServerModule"]
   },

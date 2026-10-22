@@ -233,6 +233,7 @@ public final class ClientRuntime {
             module.register(bindings);
             // 缺失实现会在发布绑定前失败，避免界面打开后才遇到空绘制器。
             bindings.freeze();
+            bindings.featureAccess.forEach(workspace::featureAccess);
             messages.addAll(bindings.messages);
             factories.putAll(bindings.windows);
             renderers.putAll(bindings.huds);
