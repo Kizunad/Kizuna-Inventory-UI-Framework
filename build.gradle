@@ -1,14 +1,11 @@
 plugins {
-    id 'fabric-loom' version '1.6-SNAPSHOT'
+    alias(libs.plugins.fabric.loom)
     id 'java-library'
-    id 'com.google.protobuf' version '0.9.6'
+    alias(libs.plugins.protobuf)
 }
 
 group = 'dev.kizuna.inventoryui'
 version = '0.1.0-SNAPSHOT'
-
-// 编译器与运行库使用同一版本，避免生成代码和运行时的兼容边界漂移。
-ext.protobufVersion = '4.36.2'
 
 repositories {
     maven { url = 'https://maven.fabricmc.net/' }
@@ -17,26 +14,26 @@ repositories {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.toVersion(libs.versions.java.get())
+    targetCompatibility = JavaVersion.toVersion(libs.versions.java.get())
     withSourcesJar()
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.release = 17
+    options.release = libs.versions.java.get().toInteger()
     options.encoding = 'UTF-8'
 }
 
 dependencies {
-    minecraft 'com.mojang:minecraft:1.20.1'
-    mappings 'net.fabricmc:yarn:1.20.1+build.10:v2'
-    modImplementation 'net.fabricmc:fabric-loader:0.16.10'
-    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.92.3+1.20.1'
-    modImplementation 'io.wispforest:owo-lib:0.11.2+1.20'
+    minecraft libs.minecraft
+    mappings "net.fabricmc:yarn:${libs.versions.yarn.get()}:v2"
+    modImplementation libs.fabric.loader
+    modImplementation libs.fabric.api
+    modImplementation libs.owo
     modImplementation project(':server')
-    api "com.google.protobuf:protobuf-java:${protobufVersion}"
-    include "com.google.protobuf:protobuf-java:${protobufVersion}"
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    api libs.protobuf.java
+    include libs.protobuf.java
+    testImplementation libs.junit.jupiter
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -57,7 +54,8 @@ sourceSets {
 }
 
 protobuf {
-    protoc { artifact = "com.google.protobuf:protoc:${protobufVersion}" }
+    // 编译器与运行库使用同一版本，避免生成代码和运行时的兼容边界漂移。
+    protoc { artifact = "com.google.protobuf:protoc:${libs.versions.protobuf.java.get()}" }
     generateProtoTasks {
         ofSourceSet('main').configureEach { task ->
             task.generateDescriptorSet = true

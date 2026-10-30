@@ -19,7 +19,7 @@
 ./gradlew runDemo
 ```
 
-请先确保 `java -version` 为 17。`runDemo` 从标题页自动打开示例工作台；普通框架使用者进入世界后按 **I** 打开，键位可在游戏设置中修改。
+请先确保 `java -version` 为 17。构建需要相邻目录的 `Kizuna-Meridian-Mod-Framework` 仓库：`settings.gradle` 应用其 `scripts/workspace.gradle`，上表版本与 Gradle 8.14.6、Fabric Loom 1.13.6 都取自其中的版本目录 `scripts/libs.versions.toml`。`runDemo` 从标题页自动打开示例工作台；普通框架使用者进入世界后按 **I** 打开，键位可在游戏设置中修改。
 
 `build/libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar` 为可加载的框架 JAR；`-demo.jar` 是独立示例模组，两者分别打包。框架不包含示例源码或模拟服务器。安装时同时提供 Fabric API 和 owo-lib；`-sources.jar` 和 `-demo-dev.jar` 不是运行产物。
 
