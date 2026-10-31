@@ -10,12 +10,13 @@ import io.wispforest.owo.ui.component.Components;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.minecraft.client.gui.screen.*;
-import net.minecraft.client.gui.screen.ConnectScreen;
-import net.minecraft.client.network.ServerAddress;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.client.util.ScreenshotRecorder;
-import net.minecraft.text.Text;
+import net.minecraft.client.Screenshot;
+import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
+import net.minecraft.client.gui.screens.ConnectScreen;
+import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.network.chat.Component;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -78,7 +79,7 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                         true));
         bindings.window(
                 "wire:window",
-                (runtime, window) -> Components.label(Text.literal("服务器状态：" + state)));
+                (runtime, window) -> Components.label(Component.literal("服务器状态：" + state)));
     }
 
     @Override
@@ -117,18 +118,18 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                                 "wire smoke timed out: "
                                         + InventoryUiClient.runtime().protocolError());
                     }
-                    if (client.currentScreen instanceof AccessibilityOnboardingScreen) {
+                    if (client.screen instanceof AccessibilityOnboardingScreen) {
                         client.setScreen(new TitleScreen());
                     }
                     if (!connecting
-                            && client.currentScreen instanceof TitleScreen
+                            && client.screen instanceof TitleScreen
                             && client.getOverlay() == null) {
                         connecting = true;
-                        ConnectScreen.connect(
+                        ConnectScreen.startConnecting(
                                 new TitleScreen(),
                                 client,
-                                ServerAddress.parse(ADDRESS),
-                                new ServerInfo("Local wire fixture", ADDRESS, false),
+                                ServerAddress.parseString(ADDRESS),
+                                new ServerData("Local wire fixture", ADDRESS, false),
                                 false);
                     }
                     if (client.player != null && state == 7 && accepted && rejected) {
@@ -143,10 +144,10 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                             client.setScreen(null);
                         }
                         if (readyTicks == CAPTURE_DELAY_TICKS) {
-                            ScreenshotRecorder.saveScreenshot(
-                                    client.runDirectory,
+                            Screenshot.grab(
+                                    client.gameDirectory,
                                     "pinned-hud.png",
-                                    client.getFramebuffer(),
+                                    client.getMainRenderTarget(),
                                     message -> {});
                             // 取消固定窗口后，像素对照只检查原版 HUD，不混入测试模块自身的 HUD。
                             runtime.workspace().disconnect();
@@ -156,14 +157,14 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                         if (hudProbe != null && hudProbe.verified()) {
                             try {
                                 Files.writeString(
-                                        client.runDirectory.toPath().resolve("wire-client-ok.txt"),
+                                        client.gameDirectory.toPath().resolve("wire-client-ok.txt"),
                                         "state=7; accepted=true; rejected=true; pinned HUD"
                                             + " rendered; vanilla HUD hidden and restored; F1"
                                             + " unchanged\n");
                             } catch (IOException failure) {
                                 throw new UncheckedIOException(failure);
                             }
-                            client.scheduleStop();
+                            client.stop();
                         }
                     }
                 });

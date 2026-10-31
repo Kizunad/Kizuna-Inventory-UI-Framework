@@ -13,10 +13,6 @@ import io.wispforest.owo.ui.base.BaseComponent;
 import io.wispforest.owo.ui.core.Component;
 import io.wispforest.owo.ui.core.OwoUIDrawContext;
 import io.wispforest.owo.ui.core.Sizing;
-
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
-
 import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
@@ -24,6 +20,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
+import net.minecraft.client.gui.screens.Screen;
 
 /** 占格网格；共享 drag 时支持跨窗口拖放，所有操作仅产生意图。 */
 public final class InventoryGridComponent extends BaseComponent implements ItemDropTarget {
@@ -161,7 +158,7 @@ public final class InventoryGridComponent extends BaseComponent implements ItemD
         var container = container(snapshot);
         if (container == null) {
             drag.cancel(this);
-            tooltip(List.<Text>of());
+            tooltip(List.<net.minecraft.network.chat.Component>of());
             return;
         }
         for (int row = 0; row < rows; row++) {

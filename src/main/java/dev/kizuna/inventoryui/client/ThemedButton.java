@@ -2,13 +2,13 @@ package dev.kizuna.inventoryui.client;
 
 import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.network.chat.Component;
 
 /** 菜单按钮使用当前主题，不再混入原版石纹按钮。 */
-final class ThemedButton extends ButtonWidget {
+final class ThemedButton extends Button {
     private static final int TEXT_INSET = 6;
     private final ClientRuntime runtime;
 
@@ -25,14 +25,14 @@ final class ThemedButton extends ButtonWidget {
                 y,
                 width,
                 height,
-                Text.literal(text),
+                Component.literal(text),
                 ignored -> action.run(),
-                DEFAULT_NARRATION_SUPPLIER);
+                DEFAULT_NARRATION);
         this.runtime = runtime;
     }
 
     @Override
-    public void renderButton(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
         // 键盘焦点与鼠标悬停保持一致提示，主题切换无需重建按钮。
         boolean highlighted = isHovered() || isFocused();
         context.fill(
@@ -41,21 +41,21 @@ final class ThemedButton extends ButtonWidget {
                 getX() + getWidth(),
                 getY() + getHeight(),
                 runtime.color(highlighted ? CONTROL_HOVER : CONTROL));
-        context.drawBorder(
+        context.renderOutline(
                 getX(),
                 getY(),
                 getWidth(),
                 getHeight(),
                 runtime.color(highlighted ? ACCENT : BORDER));
-        var text = MinecraftClient.getInstance().textRenderer;
+        var text = Minecraft.getInstance().font;
         String label =
-                text.trimToWidth(
+                text.plainSubstrByWidth(
                         getMessage().getString(), Math.max(0, getWidth() - 2 * TEXT_INSET));
-        context.drawText(
+        context.drawString(
                 text,
                 label,
-                getX() + (getWidth() - text.getWidth(label)) / 2,
-                getY() + (getHeight() - text.fontHeight) / 2,
+                getX() + (getWidth() - text.width(label)) / 2,
+                getY() + (getHeight() - text.lineHeight) / 2,
                 runtime.color(active ? TEXT : MUTED_TEXT),
                 false);
     }

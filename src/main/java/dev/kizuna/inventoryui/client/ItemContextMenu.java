@@ -2,17 +2,15 @@ package dev.kizuna.inventoryui.client;
 
 import dev.kizuna.inventoryui.inventory.ItemAction;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
-
 import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.ToIntFunction;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 
 /** 最上层公共操作菜单；动作列表和可用性由模块提供，库存更新使旧菜单失效。 */
 public final class ItemContextMenu {
@@ -46,7 +44,7 @@ public final class ItemContextMenu {
     }
 
     public void render(
-            DrawContext context,
+            GuiGraphics context,
             int width,
             int height,
             int mouseX,
@@ -60,7 +58,7 @@ public final class ItemContextMenu {
         visibleRows = Math.max(1, Math.min(actions.size(), height / ROW_HEIGHT));
         x = Math.max(0, Math.min(x, width - w));
         y = Math.max(0, Math.min(y, height - visibleRows * ROW_HEIGHT));
-        var text = MinecraftClient.getInstance().textRenderer;
+        var text = Minecraft.getInstance().font;
         context.fill(
                 x, y, x + w, y + visibleRows * ROW_HEIGHT, colors.applyAsInt(ThemeTokens.PANEL));
         for (int row = 0; row < visibleRows; row++) {
@@ -73,15 +71,15 @@ public final class ItemContextMenu {
                 context.fill(
                         x, top, x + w, top + ROW_HEIGHT, colors.applyAsInt(ThemeTokens.HEADER));
             }
-            context.drawTextWithShadow(
+            context.drawString(
                     text,
-                    text.trimToWidth(action.label(), w - 2 * PADDING),
+                    text.plainSubstrByWidth(action.label(), w - 2 * PADDING),
                     x + PADDING,
                     top + PADDING,
                     colors.applyAsInt(
                             action.enabled() ? ThemeTokens.TEXT : ThemeTokens.MUTED_TEXT));
             if (hover && !action.enabled() && !action.disabledReason().isBlank()) {
-                context.drawTooltip(text, Text.literal(action.disabledReason()), mouseX, mouseY);
+                context.renderTooltip(text, Component.literal(action.disabledReason()), mouseX, mouseY);
             }
         }
     }

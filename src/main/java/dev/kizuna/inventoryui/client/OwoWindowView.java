@@ -9,8 +9,7 @@ import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Component;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
-
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 /** 独立 owo 组件树，业务订阅由窗口 scope 管理，渲染资源随视图释放。 */
 final class OwoWindowView implements AutoCloseable {
@@ -43,7 +42,7 @@ final class OwoWindowView implements AutoCloseable {
     }
 
     void render(
-            DrawContext context, UiWindowManager.Rect bounds, int mouseX, int mouseY, float delta) {
+            GuiGraphics context, UiWindowManager.Rect bounds, int mouseX, int mouseY, float delta) {
         // 外框位置或尺寸变化时同步适配器，保证绘制与输入使用同一内容区域。
         if (!bounds.equals(previous)) {
             adapter.moveAndResize(

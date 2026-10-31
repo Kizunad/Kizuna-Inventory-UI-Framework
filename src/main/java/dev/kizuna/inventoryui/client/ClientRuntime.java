@@ -15,10 +15,6 @@ import dev.kizuna.inventoryui.theme.ThemeTokens;
 import dev.kizuna.inventoryui.window.UiWindowManager;
 import dev.kizuna.inventoryui.workspace.WorkspaceController;
 import dev.kizuna.inventoryui.workspace.WorkspacePreferences;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -30,6 +26,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 
 /** Fabric 客户端的组合根；状态、内容和业务动作由子模组提供。所有调用限定客户端线程。 */
 public final class ClientRuntime {
@@ -339,7 +337,7 @@ public final class ClientRuntime {
         return localBackgrounds;
     }
 
-    void renderBackground(DrawContext context, int width, int height) {
+    void renderBackground(GuiGraphics context, int width, int height) {
         // 本地图片与模块资源共用选择入口，文件名不进入模块注册表。
         if (background != null && background.startsWith("local:") && localBackgrounds != null) {
             localBackgrounds.render(context, width, height);
@@ -375,15 +373,15 @@ public final class ClientRuntime {
 
     public UiWindowManager.WindowState open(String feature, String objectId) {
         // 为已有最小化窗口留位；新窗口展开显示，不再创建额外的底部页签。
-        var client = MinecraftClient.getInstance();
+        var client = Minecraft.getInstance();
         if (!catalog.features().containsKey(feature)) {
             throw new IllegalArgumentException("unknown feature: " + feature);
         }
         workspace
                 .windows()
                 .resizeViewport(
-                        client.getWindow().getScaledWidth(),
-                        Math.max(1, client.getWindow().getScaledHeight() - bottomBarHeight()));
+                        client.getWindow().getGuiScaledWidth(),
+                        Math.max(1, client.getWindow().getGuiScaledHeight() - bottomBarHeight()));
         var state =
                 workspace.openFeature(
                         feature,
@@ -415,7 +413,7 @@ public final class ClientRuntime {
     }
 
     public void openWorkspace() {
-        MinecraftClient.getInstance().setScreen(new WorkspaceScreen(this));
+        Minecraft.getInstance().setScreen(new WorkspaceScreen(this));
     }
 
     public void resetWindowLayout() {
@@ -466,7 +464,7 @@ public final class ClientRuntime {
     }
 
     void renderWindow(
-            DrawContext context,
+            GuiGraphics context,
             UiWindowManager.WindowState state,
             UiWindowManager.Rect bounds,
             boolean controls,
@@ -474,9 +472,9 @@ public final class ClientRuntime {
             int mouseY,
             float delta) {
         // 外框和内容共用窗口生命周期；HUD 路径隐藏按钮，并禁用悬停输入。
-        context.draw();
+        context.flush();
         com.mojang.blaze3d.systems.RenderSystem.clear(
-                org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
+                org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
         WindowChrome.render(context, this, state, bounds, controls, mouseX, mouseY);
         var view = views.get(state.key());
         if (view != null && bounds.height() > WINDOW_HEADER_HEIGHT + WINDOW_BORDER) {
@@ -484,20 +482,20 @@ public final class ClientRuntime {
         }
         if (controls) {
             // 角标与拖动命中使用同一尺寸，内容铺满时仍明确展示缩放入口。
-            context.drawText(
-                    MinecraftClient.getInstance().textRenderer,
+            context.drawString(
+                    Minecraft.getInstance().font,
                     "◢",
                     bounds.x() + bounds.width() - RESIZE_GRIP_SIZE,
                     bounds.y() + bounds.height() - RESIZE_GRIP_SIZE,
                     color(ThemeTokens.ACCENT),
                     false);
         }
-        context.draw();
+        context.flush();
     }
 
-    public void renderHuds(DrawContext context, int width, int height, float delta) {
+    public void renderHuds(GuiGraphics context, int width, int height, float delta) {
         // 工作台已经绘制窗口；普通游戏 HUD 才渲染固定实例，不创建第二棵组件树。
-        if (!(MinecraftClient.getInstance().currentScreen instanceof WorkspaceScreen)) {
+        if (!(Minecraft.getInstance().screen instanceof WorkspaceScreen)) {
             for (var state : workspace.windowBar()) {
                 if (state.hudVisible()) {
                     var source = state.bounds();
@@ -514,22 +512,22 @@ public final class ClientRuntime {
             }
         }
         // 固定窗口的 owo 子树可能留下深度，独立 HUD 层必须从清空后的深度开始。
-        context.draw();
+        context.flush();
         com.mojang.blaze3d.systems.RenderSystem.clear(
-                org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
+                org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
         // 每个 HUD 使用独立变换和裁剪，模块只需要在自己的逻辑坐标内绘制。
         for (var hud : catalog.huds().values()) {
             if (!hudLayout.placement(hud.id()).visible()) {
                 continue;
             }
             var bounds = hudLayout.bounds(hud.id(), width, height);
-            var matrices = context.getMatrices();
+            var matrices = context.pose();
             context.enableScissor(
                     bounds.x(),
                     bounds.y(),
                     bounds.x() + bounds.width(),
                     bounds.y() + bounds.height());
-            matrices.push();
+            matrices.pushPose();
             try {
                 matrices.translate(bounds.x(), bounds.y(), 0);
                 float scale = hudLayout.placement(hud.id()).scale();
@@ -537,13 +535,13 @@ public final class ClientRuntime {
                 renderers.get(hud.id()).render(context, hud.width(), hud.height(), delta);
             } finally {
                 // 模块绘制失败也必须还原上下文，避免影响后续 HUD 和游戏界面。
-                matrices.pop();
+                matrices.popPose();
                 context.disableScissor();
             }
         }
     }
 
-    public void renderSlotBar(DrawContext context, String barId, int width, int height) {
+    public void renderSlotBar(GuiGraphics context, String barId, int width, int height) {
         // 用注册数量分配格宽；HUD 和工作台读取同一供应器，绑定变化会同时显示。
         var bar = catalog.slotBars().get(barId);
         if (bar == null) {
@@ -554,7 +552,7 @@ public final class ClientRuntime {
         }
         int cellWidth = Math.max(1, width / bar.slots().size());
         int index = 0;
-        var text = MinecraftClient.getInstance().textRenderer;
+        var text = Minecraft.getInstance().font;
         for (var slot : bar.slots()) {
             int x = index++ * cellWidth;
             var content = slotContent(barId, slot);
@@ -571,12 +569,12 @@ public final class ClientRuntime {
                         height,
                         this::color);
             } else {
-                context.drawTextWithShadow(
+                context.drawString(
                         text,
-                        text.trimToWidth(
+                        text.plainSubstrByWidth(
                                 content.label(), Math.max(1, cellWidth - 2 * WINDOW_BORDER)),
                         x + WINDOW_BORDER,
-                        (height - text.fontHeight) / 2,
+                        (height - text.lineHeight) / 2,
                         color(ThemeTokens.HUD_TEXT));
             }
         }

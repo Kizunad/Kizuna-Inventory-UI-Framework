@@ -1,19 +1,17 @@
 package dev.kizuna.inventoryui.client;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import dev.kizuna.inventoryui.workspace.LocalBackgroundLibrary;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.texture.NativeImage;
-import net.minecraft.client.texture.NativeImageBackedTexture;
-import net.minecraft.util.Identifier;
-
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.ResourceLocation;
 
 /** 本地背景纹理有界缓存；刷新、替换和关闭时释放显存。仅客户端线程调用。 */
 final class LocalBackgrounds implements AutoCloseable {
@@ -66,11 +64,11 @@ final class LocalBackgrounds implements AutoCloseable {
         }
     }
 
-    void render(DrawContext context, int width, int height) {
+    void render(GuiGraphics context, int width, int height) {
         draw(context, selected, 0, 0, width, height);
     }
 
-    void thumbnail(DrawContext context, String id, int x, int y, int width, int height) {
+    void thumbnail(GuiGraphics context, String id, int x, int y, int width, int height) {
         // 只加载可见条目；空值也缓存，避免损坏图片每帧重复解析。
         if (!thumbnails.containsKey(id) && entries.contains(id)) {
             try {
@@ -102,14 +100,14 @@ final class LocalBackgrounds implements AutoCloseable {
                                     Math.min(source.getWidth() - 1, (int) (x / scale)),
                                     Math.min(source.getHeight() - 1, (int) (y / scale)));
                     // ImageIO 为 ARGB，NativeImage 为 ABGR；用颜色工具转换，避免位掩码散落。
-                    image.setColor(
+                    image.setPixelRGBA(
                             x,
                             y,
-                            net.minecraft.util.math.ColorHelper.Abgr.getAbgr(
-                                    net.minecraft.util.math.ColorHelper.Argb.getAlpha(argb),
-                                    net.minecraft.util.math.ColorHelper.Argb.getBlue(argb),
-                                    net.minecraft.util.math.ColorHelper.Argb.getGreen(argb),
-                                    net.minecraft.util.math.ColorHelper.Argb.getRed(argb)));
+                            net.minecraft.util.FastColor.ABGR32.color(
+                                    net.minecraft.util.FastColor.ARGB32.alpha(argb),
+                                    net.minecraft.util.FastColor.ARGB32.blue(argb),
+                                    net.minecraft.util.FastColor.ARGB32.green(argb),
+                                    net.minecraft.util.FastColor.ARGB32.red(argb)));
                 }
             }
         } catch (RuntimeException | Error failure) {
@@ -117,12 +115,12 @@ final class LocalBackgrounds implements AutoCloseable {
             throw failure;
         }
         // 从此处起像素所有权交给纹理对象，失败路径只由纹理关闭一次。
-        var texture = new NativeImageBackedTexture(image);
+        var texture = new DynamicTexture(image);
         try {
             var id =
-                    MinecraftClient.getInstance()
+                    Minecraft.getInstance()
                             .getTextureManager()
-                            .registerDynamicTexture("kiui-background", texture);
+                            .register("kiui-background", texture);
             return new Texture(id, width, height);
         } catch (RuntimeException | Error failure) {
             texture.close();
@@ -131,7 +129,7 @@ final class LocalBackgrounds implements AutoCloseable {
     }
 
     private static void draw(
-            DrawContext context, Texture texture, int x, int y, int width, int height) {
+            GuiGraphics context, Texture texture, int x, int y, int width, int height) {
         // COVER 直接裁切源区域，不依赖外层 scissor，缩略图也可嵌入滚动列表。
         if (texture == null) {
             return;
@@ -140,7 +138,7 @@ final class LocalBackgrounds implements AutoCloseable {
                 Math.max((double) width / texture.width(), (double) height / texture.height());
         int sw = Math.max(1, (int) Math.round(width / scale));
         int sh = Math.max(1, (int) Math.round(height / scale));
-        context.drawTexture(
+        context.blit(
                 texture.id(),
                 x,
                 y,
@@ -157,7 +155,7 @@ final class LocalBackgrounds implements AutoCloseable {
     private static void release(Texture texture) {
         // 空值代表加载失败，无纹理需要释放。
         if (texture != null) {
-            MinecraftClient.getInstance().getTextureManager().destroyTexture(texture.id());
+            Minecraft.getInstance().getTextureManager().release(texture.id());
         }
     }
 
@@ -169,5 +167,5 @@ final class LocalBackgrounds implements AutoCloseable {
         selected = null;
     }
 
-    private record Texture(Identifier id, int width, int height) {}
+    private record Texture(ResourceLocation id, int width, int height) {}
 }

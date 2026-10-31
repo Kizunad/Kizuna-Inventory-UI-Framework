@@ -6,9 +6,8 @@ import dev.kizuna.inventoryui.wiresmoke.pb.SmokeProtocol;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.Identifier;
-
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -17,7 +16,7 @@ import java.util.Map;
 
 /** 仅测试源集加载的本地 Fabric 服务端，验证真正的 Play CustomPayload 往返。 */
 public final class WireServer implements DedicatedServerModInitializer {
-    private static final Identifier CHANNEL = new Identifier("kizuna_inventory_ui", "message");
+    private static final ResourceLocation CHANNEL = new ResourceLocation("kizuna_inventory_ui", "message");
 
     @Override
     public void onInitializeServer() {
@@ -28,7 +27,7 @@ public final class WireServer implements DedicatedServerModInitializer {
             throw new UncheckedIOException(failure);
         }
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register(
-                (handler, server) -> server.stop(false));
+                (handler, server) -> server.halt(false));
         ServerPlayNetworking.registerGlobalReceiver(
                 CHANNEL,
                 (server, player, handler, buffer, sender) -> {
@@ -42,7 +41,7 @@ public final class WireServer implements DedicatedServerModInitializer {
                 });
     }
 
-    private void receive(ServerPlayerEntity player, UiWire.Packet packet) {
+    private void receive(ServerPlayer player, UiWire.Packet packet) {
         // 夹具只提供验收所需的协议对端，生产框架不包含这个模拟业务。
         if (packet.kind() == UiWire.Kind.HELLO) {
             send(player, UiWire.Packet.negotiation(UiWire.Kind.ACCEPT, packet.capabilities()));
@@ -104,7 +103,7 @@ public final class WireServer implements DedicatedServerModInitializer {
         }
     }
 
-    private static void send(ServerPlayerEntity player, UiWire.Packet packet) {
+    private static void send(ServerPlayer player, UiWire.Packet packet) {
         // 与客户端使用同一份 proto 生成的二进制信封，不额外添加长度前缀。
         var buffer = PacketByteBufs.create();
         buffer.writeBytes(UiWire.encode(packet));

@@ -1,15 +1,13 @@
 package dev.kizuna.inventoryui.client.svg;
 
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.util.Identifier;
-
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.resources.ResourceLocation;
 
 /** 已注册 SVG 的惰性网格缓存，资源重载后同时清除成功与失败结果。 */
 public final class SvgRenderer {
@@ -24,7 +22,7 @@ public final class SvgRenderer {
     }
 
     public boolean draw(
-            DrawContext context, String assetId, int x, int y, int width, int height, int tint) {
+            GuiGraphics context, String assetId, int x, int y, int width, int height, int tint) {
         // 缺失注册是接入错误；已注册但坏资源只跳过绘制，日志每次重载最多报告一次。
         if (!assets.containsKey(assetId)) {
             throw new IllegalArgumentException("unregistered SVG asset: " + assetId);
@@ -44,9 +42,9 @@ public final class SvgRenderer {
     private Optional<SvgMesh> load(String id) {
         // 流只在首次绘制时打开，不在每帧解析 XML，缓存容量由注册目录界定。
         try (var input =
-                MinecraftClient.getInstance()
+                Minecraft.getInstance()
                         .getResourceManager()
-                        .open(new Identifier(assets.get(id).resourceId()))) {
+                        .open(new ResourceLocation(assets.get(id).resourceId()))) {
             return Optional.of(tessellator.tessellate(parser.parse(input)));
         } catch (IOException | RuntimeException failure) {
             System.getLogger(SvgRenderer.class.getName())

@@ -41,7 +41,7 @@ import dev.kizuna.inventoryui.protocol.pb.WireProtocol.Direction;
 import dev.kizuna.inventoryui.server.ServerModuleRegistry;
 import dev.kizuna.inventoryui.server.fabric.FabricServerModule;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.level.ServerPlayer;
 import java.util.Map;
 
 public final class ExampleServerModule implements FabricServerModule {
@@ -50,7 +50,7 @@ public final class ExampleServerModule implements FabricServerModule {
     private static final String STATE = "example:state";
 
     @Override
-    public void register(MinecraftServer server, ServerModuleRegistry<ServerPlayerEntity> registry) {
+    public void register(MinecraftServer server, ServerModuleRegistry<ServerPlayer> registry) {
         // 每条连接创建独立会话，服务级依赖可在此创建并由闭包共享。
         registry.register(MODULE, Map.of(
                 REQUEST, capability(Direction.CLIENT_TO_SERVER),
@@ -76,7 +76,7 @@ public final class ExampleServerModule implements FabricServerModule {
 
 ## 协商与会话
 
-核心 API 位于 `dev.kizuna.inventoryui.server`：`ServerModuleRegistry<C>`、`ServerRouter<C>`、`ServerConnection<C>`、`ServerRequest<C>`、`ServerModuleSession<C>`。核心不依赖 Minecraft；`.server.fabric` 提供 Fabric 适配，认证上下文 `C` 为 `ServerPlayerEntity`。
+核心 API 位于 `dev.kizuna.inventoryui.server`：`ServerModuleRegistry<C>`、`ServerRouter<C>`、`ServerConnection<C>`、`ServerRequest<C>`、`ServerModuleSession<C>`。核心不依赖 Minecraft；`.server.fabric` 提供 Fabric 适配，认证上下文 `C` 为 `ServerPlayer`。
 
 每连接只接受一次 HELLO。两端的 `required` 分别表示自身不可省略的能力：服务端必需而客户端缺少时为 `REQUIRED_CAPABILITY_MISSING`；客户端必需而服务端缺模块为 `MODULE_MISSING`，缺消息为 `UNKNOWN_MESSAGE`，不兼容为 `PROTOCOL_MISMATCH`。错误带失败模块和消息 ID。可选能力只取双方兼容交集。
 

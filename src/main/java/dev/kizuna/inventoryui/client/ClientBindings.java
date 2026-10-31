@@ -7,9 +7,6 @@ import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.window.UiWindowManager;
 
 import io.wispforest.owo.ui.core.Component;
-
-import net.minecraft.client.gui.DrawContext;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,6 +15,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import net.minecraft.client.gui.GuiGraphics;
 
 /** 一次性、按模块隔离的渲染注册。初始化结束后拒绝继续修改。 */
 public final class ClientBindings {
@@ -117,7 +115,7 @@ public final class ClientBindings {
     @FunctionalInterface
     public interface HudRenderer {
         /** 坐标原点已移到 HUD 左上角，尺寸为定义中的逻辑尺寸。 */
-        void render(DrawContext context, int width, int height, float tickDelta);
+        void render(GuiGraphics context, int width, int height, float tickDelta);
     }
 
     public record SlotContent(

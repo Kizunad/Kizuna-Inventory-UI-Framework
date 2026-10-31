@@ -7,16 +7,14 @@ import dev.kizuna.inventoryui.theme.ThemeTokens;
 import io.wispforest.owo.ui.base.BaseComponent;
 import io.wispforest.owo.ui.core.OwoUIDrawContext;
 import io.wispforest.owo.ui.core.Sizing;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
-
 import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 /** 单个动态槽位；装备、快捷引用和投料槽都通过同一内容与落点契约接入。 */
 public final class ItemSlotComponent extends BaseComponent implements ItemDropTarget {
@@ -57,12 +55,12 @@ public final class ItemSlotComponent extends BaseComponent implements ItemDropTa
             ItemDrawing.draw(
                     context, value.item(), value.item().count(), x, y, width, height, colors);
         } else {
-            var text = MinecraftClient.getInstance().textRenderer;
-            context.drawTextWithShadow(
+            var text = Minecraft.getInstance().font;
+            context.drawString(
                     text,
-                    text.trimToWidth(value.label(), Math.max(1, width - 2 * TEXT_INSET)),
+                    text.plainSubstrByWidth(value.label(), Math.max(1, width - 2 * TEXT_INSET)),
                     x + TEXT_INSET,
-                    y + (height - text.fontHeight) / 2,
+                    y + (height - text.lineHeight) / 2,
                     colors.applyAsInt(ThemeTokens.TEXT));
         }
         var payload = drag.current();
@@ -78,7 +76,7 @@ public final class ItemSlotComponent extends BaseComponent implements ItemDropTa
                                     ? ThemeTokens.INVENTORY_DROP_VALID
                                     : ThemeTokens.INVENTORY_DROP_INVALID));
         }
-        tooltip(List.of(Text.literal(value.label())));
+        tooltip(List.of(Component.literal(value.label())));
     }
 
     @Override

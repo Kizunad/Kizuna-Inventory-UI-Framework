@@ -1,25 +1,22 @@
 package dev.kizuna.inventoryui.client.component;
 
+import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
-
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 
 import io.wispforest.owo.ui.base.BaseComponent;
 import io.wispforest.owo.ui.core.OwoUIDrawContext;
 import io.wispforest.owo.ui.core.Sizing;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.DiffuseLighting;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.RotationAxis;
-
 import org.lwjgl.glfw.GLFW;
 
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.world.phys.AABB;
 
 /** 旋转、缩放和自动适配的模型画布；模型几何、纹理与渲染实现由子 JAR 提供。 */
 public final class ModelPreviewComponent extends BaseComponent {
@@ -61,30 +58,30 @@ public final class ModelPreviewComponent extends BaseComponent {
         }
         previousFrame = now;
         float scale = camera.scale(bounds, width, height);
-        var matrices = context.getMatrices();
-        var buffers = MinecraftClient.getInstance().getBufferBuilders().getEntityVertexConsumers();
-        context.draw();
+        var matrices = context.pose();
+        var buffers = Minecraft.getInstance().renderBuffers().bufferSource();
+        context.flush();
         context.enableScissor(x, y, x + width, y + height);
-        matrices.push();
+        matrices.pushPose();
         try {
             matrices.translate(x + width / 2f, y + height / 2f, MODEL_DEPTH);
             matrices.scale(scale, value.yUp() ? -scale : scale, scale * DEPTH_SCALE);
-            matrices.multiply(RotationAxis.POSITIVE_X.rotationDegrees(camera.pitch()));
-            matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(camera.yaw()));
+            matrices.mulPose(Axis.XP.rotationDegrees(camera.pitch()));
+            matrices.mulPose(Axis.YP.rotationDegrees(camera.yaw()));
             var center = camera.center(bounds);
             matrices.translate(-center.x, -center.y, -center.z);
-            DiffuseLighting.enableGuiDepthLighting();
+            Lighting.setupFor3DItems();
             RenderSystem.enableDepthTest();
             value.render(matrices, buffers, partialTicks);
         } finally {
             // 包括模块绘制异常在内，顶点缓冲、矩阵、裁剪和光照都必须恢复。
             try {
-                buffers.draw();
+                buffers.endBatch();
             } finally {
-                matrices.pop();
+                matrices.popPose();
                 context.disableScissor();
                 RenderSystem.disableDepthTest();
-                DiffuseLighting.enableGuiDepthLighting();
+                Lighting.setupFor3DItems();
             }
         }
     }
@@ -143,12 +140,12 @@ public final class ModelPreviewComponent extends BaseComponent {
     }
 
     public interface Model {
-        Box bounds();
+        AABB bounds();
 
         default boolean yUp() {
             return true;
         }
 
-        void render(MatrixStack matrices, VertexConsumerProvider buffers, float tickDelta);
+        void render(PoseStack matrices, MultiBufferSource buffers, float tickDelta);
     }
 }

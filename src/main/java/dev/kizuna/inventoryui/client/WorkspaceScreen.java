@@ -10,13 +10,6 @@ import dev.kizuna.inventoryui.hud.HudLayout;
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.window.UiWindowManager;
 import dev.kizuna.inventoryui.window.WindowMotion;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
-
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -24,6 +17,11 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 /** 工作台外壳：目录与外观是明确入口，业务窗口由注册目录生成。 */
 public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
@@ -69,7 +67,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     private UiWindowManager.WindowKey focused;
     private UiWindowManager.WindowKey pressed;
     private Panel panel = Panel.NONE;
-    private TextFieldWidget search;
+    private EditBox search;
     private String query = "";
     private int page;
     private int bottomOffset;
@@ -84,14 +82,14 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     private final Map<UiWindowManager.WindowKey, UiWindowManager.Rect> anchors =
             new LinkedHashMap<>();
     private UiWindowManager.WindowKey sizeTarget;
-    private TextFieldWidget widthInput;
-    private TextFieldWidget heightInput;
+    private EditBox widthInput;
+    private EditBox heightInput;
     private static final int SIZE_INPUT_WIDTH = 66;
     private static final int SIZE_INPUT_MAX_LENGTH = 10;
     private static final int SIZE_PANEL_HEIGHT = 100;
 
     public WorkspaceScreen(ClientRuntime runtime) {
-        super(Text.literal("Inventory Workspace"));
+        super(Component.literal("Inventory Workspace"));
         this.runtime = runtime;
     }
 
@@ -110,7 +108,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
 
     private void rebuildControls() {
         // 菜单控件随面板状态重建，业务窗口及其订阅仍由独立运行时持有。
-        clearChildren();
+        clearWidgets();
         search = null;
         int toolbarX = TOOLBAR_PADDING;
         button("功能", toolbarX, TOOLBAR_PADDING, FEATURE_BUTTON_WIDTH, () -> toggle(Panel.FEATURES));
@@ -134,23 +132,23 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         List<Row> rows = new ArrayList<>();
         if (panel == Panel.FEATURES) {
             search =
-                    new TextFieldWidget(
-                            textRenderer,
+                    new EditBox(
+                            font,
                             MENU_INSET,
                             MENU_START_Y,
                             panelWidth - 2 * MENU_INSET,
                             BUTTON_HEIGHT,
-                            Text.literal("搜索功能"));
+                            Component.literal("搜索功能"));
             search.setMaxLength(SEARCH_MAX_LENGTH);
-            search.setText(query);
-            search.setChangedListener(
+            search.setValue(query);
+            search.setResponder(
                     value -> {
                         query = value;
                         page = 0;
                         rebuildControls();
                         setFocused(search);
                     });
-            addDrawableChild(search);
+            addRenderableWidget(search);
             for (var feature : runtime.workspace().features(query)) {
                 // 每个功能只提供打开入口；按对象分实例的功能仍需模块提供具体对象 ID。
                 var policy = runtime.catalog().windows().get(feature.windowType()).instancePolicy();
@@ -265,8 +263,8 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                         new Row(
                                 "打开背景目录",
                                 () ->
-                                        net.minecraft.util.Util.getOperatingSystem()
-                                                .open(
+                                        net.minecraft.Util.getPlatform()
+                                                .openFile(
                                                         runtime.localBackgrounds()
                                                                 .directory()
                                                                 .toFile())));
@@ -302,7 +300,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             var row = rows.get(i);
             int rowY = startY + (i - page * count) * rowPitch;
             if (row.background != null) {
-                addDrawableChild(
+                addRenderableWidget(
                         new BackgroundButton(
                                 runtime,
                                 row.background,
@@ -349,7 +347,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
 
     private void button(String text, int x, int y, int w, Runnable action) {
         // 统一菜单按钮的高度和回调转接，调用点只提供布局与动作。
-        addDrawableChild(new ThemedButton(runtime, text, x, y, w, BUTTON_HEIGHT, action));
+        addRenderableWidget(new ThemedButton(runtime, text, x, y, w, BUTTON_HEIGHT, action));
     }
 
     private UiWindowManager.WindowState hitWindow(double x, double y) {
@@ -400,19 +398,19 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         setFocused(widthInput);
     }
 
-    private TextFieldWidget sizeInput(int x, String label, int value) {
+    private EditBox sizeInput(int x, String label, int value) {
         var input =
-                new TextFieldWidget(
-                        textRenderer,
+                new EditBox(
+                        font,
                         x,
                         MENU_START_Y,
                         SIZE_INPUT_WIDTH,
                         BUTTON_HEIGHT,
-                        Text.literal(label));
+                        Component.literal(label));
         input.setMaxLength(SIZE_INPUT_MAX_LENGTH);
-        input.setText(Integer.toString(value));
-        input.setEditableColor(runtime.color(TEXT));
-        addDrawableChild(input);
+        input.setValue(Integer.toString(value));
+        input.setTextColor(runtime.color(TEXT));
+        addRenderableWidget(input);
         return input;
     }
 
@@ -420,9 +418,9 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         // 管理器拒绝非法文本时保留草稿，用户可以继续编辑而不丢失输入。
         if (!runtime.workspace()
                 .windows()
-                .resize(sizeTarget, widthInput.getText(), heightInput.getText())) {
-            widthInput.setEditableColor(runtime.color(INPUT_ERROR));
-            heightInput.setEditableColor(runtime.color(INPUT_ERROR));
+                .resize(sizeTarget, widthInput.getValue(), heightInput.getValue())) {
+            widthInput.setTextColor(runtime.color(INPUT_ERROR));
+            heightInput.setTextColor(runtime.color(INPUT_ERROR));
             return;
         }
         sizeTarget = null;
@@ -455,7 +453,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         // 窗口或固定入口增减后同步可用区域，底部不保留空行。
         if (bottomBarHeight != runtime.bottomBarHeight()) {
             updateViewport();
@@ -463,7 +461,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         }
         // 游戏内直接透出已绘制的世界，不叠加原版暗幕，也不修改玩家视角。
         // 无世界的独立演示仍需清理背景，避免把上一帧的窗口留在透明区域。
-        if (client.world == null) {
+        if (minecraft.level == null) {
             renderBackground(context);
         }
         context.fill(0, 0, width, height, runtime.color(BACKGROUND));
@@ -499,7 +497,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             for (var hud : runtime.catalog().huds().values()) {
                 if (runtime.hudLayout().placement(hud.id()).visible()) {
                     var bounds = runtime.hudLayout().bounds(hud.id(), width, height);
-                    context.drawBorder(
+                    context.renderOutline(
                             bounds.x(),
                             bounds.y(),
                             bounds.width(),
@@ -517,7 +515,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                     Math.min(width - TOOLBAR_PADDING, TOOLBAR_PADDING + MENU_WIDTH),
                     menuBottom,
                     runtime.color(MENU));
-            context.drawBorder(
+            context.renderOutline(
                     TOOLBAR_PADDING,
                     TOOLBAR_HEIGHT,
                     Math.min(width - 2 * TOOLBAR_PADDING, MENU_WIDTH),
@@ -548,27 +546,27 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                     runtime::color);
         }
         if (!notice.isEmpty()) {
-            context.drawTextWithShadow(
-                    textRenderer,
-                    textRenderer.trimToWidth(notice, width - 2 * NOTICE_INSET),
+            context.drawString(
+                    font,
+                    font.plainSubstrByWidth(notice, width - 2 * NOTICE_INSET),
                     NOTICE_INSET,
                     height - bottomBarHeight - NOTICE_BOTTOM_GAP,
                     runtime.color(ACCENT));
         }
     }
 
-    private static void clearDepth(DrawContext context) {
+    private static void clearDepth(GuiGraphics context) {
         // 先提交已排队的绘制再清深度；否则 owo 局部深度会错误遮住后续窗口。
-        context.draw();
+        context.flush();
         RenderSystem.clear(
-                org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
+                org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
     }
 
     private int minimizedWidth(UiWindowManager.WindowState state) {
         // 标题允许裁切，但始终为恢复、关闭两个独立按钮留下完整宽度。
         int controlsWidth = MINIMIZED_ACTION_COUNT * WINDOW_ACTION_WIDTH;
         int preferred =
-                textRenderer.getWidth(runtime.title(state))
+                font.width(runtime.title(state))
                         + controlsWidth
                         + 2 * WINDOW_TITLE_PADDING_X;
         return Math.max(MINIMIZED_MIN_WIDTH, Math.min(MINIMIZED_MAX_WIDTH, preferred));
@@ -597,7 +595,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     }
 
     private void drawMinimizedWindows(
-            DrawContext context, List<UiWindowManager.WindowState> states, int mouseX, int mouseY) {
+            GuiGraphics context, List<UiWindowManager.WindowState> states, int mouseX, int mouseY) {
         // 没有缩小窗口就不绘制底部内容；正常窗口不会同时出现第二个页签。
         if (anchors.isEmpty()) {
             return;
@@ -924,7 +922,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 

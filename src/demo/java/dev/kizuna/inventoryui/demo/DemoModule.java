@@ -22,16 +22,16 @@ import io.wispforest.owo.ui.component.Components;
 import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.core.Sizing;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.LightmapTextureManager;
-import net.minecraft.client.render.OverlayTexture;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.model.json.ModelTransformationMode;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.Box;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -202,7 +202,7 @@ public final class DemoModule implements ClientModule {
                                             runtime.contextMenu()));
                     root.child(
                             Components.button(
-                                    Text.literal("让下一次移动被拒绝"), button -> rejectNext = true));
+                                    Component.literal("让下一次移动被拒绝"), button -> rejectNext = true));
                     return root;
                 });
         bindings.window(
@@ -263,7 +263,7 @@ public final class DemoModule implements ClientModule {
                                                                     .get(0)
                                                                     .columns(),
                                                     ThemeTokens.PROGRESS_FILL,
-                                                    List.of(Text.literal("模块提供数值"))),
+                                                    List.of(Component.literal("模块提供数值"))),
                                     runtime::color));
                     root.child(
                             new EffectStripComponent(
@@ -274,7 +274,7 @@ public final class DemoModule implements ClientModule {
                                                             "demo:effect",
                                                             "minecraft:textures/item/apple.png",
                                                             "1",
-                                                            List.of(Text.literal("示例状态")))),
+                                                            List.of(Component.literal("示例状态")))),
                                     runtime::color));
                     root.child(
                             new ModelPreviewComponent(
@@ -283,10 +283,10 @@ public final class DemoModule implements ClientModule {
                                     () ->
                                             new ModelPreviewComponent.Model() {
                                                 @Override
-                                                public Box bounds() {
+                                                public AABB bounds() {
                                                     // 原版物品模型以中心为原点，边长为一个模型单位。
                                                     final double halfExtent = 0.5;
-                                                    return new Box(
+                                                    return new AABB(
                                                             -halfExtent,
                                                             -halfExtent,
                                                             -halfExtent,
@@ -297,20 +297,20 @@ public final class DemoModule implements ClientModule {
 
                                                 @Override
                                                 public void render(
-                                                        MatrixStack matrices,
-                                                        VertexConsumerProvider buffers,
+                                                        PoseStack matrices,
+                                                        MultiBufferSource buffers,
                                                         float tickDelta) {
-                                                    var client = MinecraftClient.getInstance();
+                                                    var client = Minecraft.getInstance();
                                                     client.getItemRenderer()
-                                                            .renderItem(
+                                                            .renderStatic(
                                                                     new ItemStack(Items.IRON_SWORD),
-                                                                    ModelTransformationMode.FIXED,
-                                                                    LightmapTextureManager
-                                                                            .MAX_LIGHT_COORDINATE,
-                                                                    OverlayTexture.DEFAULT_UV,
+                                                                    ItemDisplayContext.FIXED,
+                                                                    LightTexture
+                                                                            .FULL_BRIGHT,
+                                                                    OverlayTexture.NO_OVERLAY,
                                                                     matrices,
                                                                     buffers,
-                                                                    client.world,
+                                                                    client.level,
                                                                     0);
                                                 }
                                             },
@@ -321,20 +321,20 @@ public final class DemoModule implements ClientModule {
                 "demo:status_window",
                 (runtime, window) -> {
                     var root = Containers.verticalFlow(Sizing.fill(FILL_PERCENT), Sizing.content());
-                    var label = Components.label(Text.literal(status()));
-                    var subscription = state.subscribe(value -> label.text(Text.literal(status())));
+                    var label = Components.label(Component.literal(status()));
+                    var subscription = state.subscribe(value -> label.text(Component.literal(status())));
                     window.scope().addCleanup(subscription::close);
                     root.child(label);
                     root.child(
                             Components.button(
-                                    Text.literal("打开库存"),
+                                    Component.literal("打开库存"),
                                     button -> runtime.open("demo:inventory", null)));
                     root.child(
                             Components.button(
-                                    Text.literal("查看最近结果"),
+                                    Component.literal("查看最近结果"),
                                     button ->
                                             label.text(
-                                                    Text.literal(status() + "\n" + lastResult))));
+                                                    Component.literal(status() + "\n" + lastResult))));
                     return root;
                 });
         bindings.hud(
@@ -352,8 +352,8 @@ public final class DemoModule implements ClientModule {
                                     HUD_BADGE_SIZE,
                                     HUD_BADGE_SIZE,
                                     runtime.color(ThemeTokens.ACCENT));
-                    context.drawTextWithShadow(
-                            MinecraftClient.getInstance().textRenderer,
+                    context.drawString(
+                            Minecraft.getInstance().font,
                             status(),
                             HUD_TEXT_X,
                             HUD_TEXT_Y,

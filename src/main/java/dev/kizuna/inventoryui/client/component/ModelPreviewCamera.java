@@ -1,9 +1,8 @@
 package dev.kizuna.inventoryui.client.component;
 
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-
 import java.util.Objects;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /** 通用预览相机：角度为度，时间为秒，焦点是模型包围盒中的归一化坐标。 */
 public final class ModelPreviewCamera {
@@ -25,15 +24,15 @@ public final class ModelPreviewCamera {
     private static final float ENTRANCE_PITCH = 8f;
     private static final int FIT_PADDING = 24;
     private static final double MIN_DIAMETER = 0.001;
-    private static final Vec3d CENTER = new Vec3d(0.5, 0.5, 0.5);
+    private static final Vec3 CENTER = new Vec3(0.5, 0.5, 0.5);
 
     private float yaw = DEFAULT_YAW;
     private float pitch = DEFAULT_PITCH;
     private float zoom = 1f;
     private boolean autoRotate = true;
-    private Vec3d focus = CENTER;
-    private Vec3d startFocus = CENTER;
-    private Vec3d endFocus = CENTER;
+    private Vec3 focus = CENTER;
+    private Vec3 startFocus = CENTER;
+    private Vec3 endFocus = CENTER;
     private float startYaw, endYaw, startPitch, endPitch, startZoom, endZoom;
     private float elapsed, duration;
 
@@ -72,15 +71,15 @@ public final class ModelPreviewCamera {
         duration = 0;
     }
 
-    public Vec3d center(Box bounds) {
-        return new Vec3d(
-                bounds.minX + bounds.getXLength() * focus.x,
-                bounds.minY + bounds.getYLength() * focus.y,
-                bounds.minZ + bounds.getZLength() * focus.z);
+    public Vec3 center(AABB bounds) {
+        return new Vec3(
+                bounds.minX + bounds.getXsize() * focus.x,
+                bounds.minY + bounds.getYsize() * focus.y,
+                bounds.minZ + bounds.getZsize() * focus.z);
     }
 
     public void focus(
-            Vec3d target, float targetZoom, float targetYaw, float targetPitch, boolean entrance) {
+            Vec3 target, float targetZoom, float targetYaw, float targetPitch, boolean entrance) {
         // 聚焦仅改变相机，不触及模块模型姿态；无效值必须在进入渲染矩阵前拒绝。
         Objects.requireNonNull(target);
         if (!Double.isFinite(target.x)
@@ -160,13 +159,13 @@ public final class ModelPreviewCamera {
         zoom = clamp((float) (zoom * Math.pow(SCROLL_FACTOR, amount)), MIN_ZOOM, MAX_ZOOM);
     }
 
-    public float scale(Box bounds, int width, int height) {
+    public float scale(AABB bounds, int width, int height) {
         // 包围球直径不随旋转变化，任意模型转向时保持稳定的适配比例。
         double diameter =
                 Math.sqrt(
-                        bounds.getXLength() * bounds.getXLength()
-                                + bounds.getYLength() * bounds.getYLength()
-                                + bounds.getZLength() * bounds.getZLength());
+                        bounds.getXsize() * bounds.getXsize()
+                                + bounds.getYsize() * bounds.getYsize()
+                                + bounds.getZsize() * bounds.getZsize());
         return (float)
                         (Math.max(1, Math.min(width, height) - FIT_PADDING)
                                 / Math.max(MIN_DIAMETER, diameter))

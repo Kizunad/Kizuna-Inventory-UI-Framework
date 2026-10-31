@@ -3,17 +3,15 @@ package dev.kizuna.inventoryui.client.component;
 import dev.kizuna.inventoryui.inventory.InventorySnapshot;
 import dev.kizuna.inventoryui.inventory.ItemAction;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
-
-import net.minecraft.text.Text;
-
 import java.util.List;
+import net.minecraft.network.chat.Component;
 
 /** 模块按自己的模型提供物品外观和操作；默认只显示库存快照的公共字段。 */
 public interface ItemPresentation {
     ItemPresentation DEFAULT = new ItemPresentation() {};
 
     default void draw(
-            net.minecraft.client.gui.DrawContext context,
+            net.minecraft.client.gui.GuiGraphics context,
             InventorySnapshot.Item item,
             int count,
             boolean rotated,
@@ -26,8 +24,8 @@ public interface ItemPresentation {
         ItemDrawing.draw(context, item, count, rotated, x, y, width, height, colors);
     }
 
-    default List<Text> tooltip(InventorySnapshot.Item item) {
-        return List.of(Text.literal(item.name()), Text.literal("数量：" + item.count()));
+    default List<Component> tooltip(InventorySnapshot.Item item) {
+        return List.of(Component.literal(item.name()), Component.literal("数量：" + item.count()));
     }
 
     default String borderToken(InventorySnapshot.Item item) {

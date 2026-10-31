@@ -5,11 +5,11 @@ import dev.kizuna.inventoryui.protocol.UiWire;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.util.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 /** 单一可选 CustomPayload 通道；消息体为 Protobuf Envelope，不附加长度前缀。 */
 final class FabricUiTransport {
-    static final Identifier CHANNEL = new Identifier("kizuna_inventory_ui", "message");
+    static final ResourceLocation CHANNEL = new ResourceLocation("kizuna_inventory_ui", "message");
 
     private FabricUiTransport() {}
 
@@ -37,7 +37,7 @@ final class FabricUiTransport {
                     buffer.readBytes(bytes);
                     client.execute(
                             () -> {
-                                if (client.getNetworkHandler() != handler) {
+                                if (client.getConnection() != handler) {
                                     return;
                                 }
                                 try {

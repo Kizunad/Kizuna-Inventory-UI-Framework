@@ -6,14 +6,12 @@ import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 import dev.kizuna.inventoryui.window.UiWindowManager;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.util.Identifier;
-
 import org.lwjgl.opengl.GL11;
 
 import java.util.List;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.resources.ResourceLocation;
 
 /** 工作台与固定 HUD 共用外框；按钮绘制和点击都读取相同的动作矩形。 */
 final class WindowChrome {
@@ -33,16 +31,16 @@ final class WindowChrome {
         MINIMIZE("minus"),
         PIN("lock-keyhole-open"),
         CLOSE("x");
-        final Identifier icon;
+        final ResourceLocation icon;
 
         Action(String icon) {
             this.icon =
-                    new Identifier("kizuna_inventory_ui", "textures/gui/window/" + icon + ".png");
+                    new ResourceLocation("kizuna_inventory_ui", "textures/gui/window/" + icon + ".png");
         }
     }
 
-    private static final Identifier PINNED =
-            new Identifier("kizuna_inventory_ui", "textures/gui/window/lock-keyhole.png");
+    private static final ResourceLocation PINNED =
+            new ResourceLocation("kizuna_inventory_ui", "textures/gui/window/lock-keyhole.png");
 
     private static final List<Action> WINDOW_ACTIONS =
             List.of(Action.SIZE, Action.MINIMIZE, Action.PIN, Action.CLOSE);
@@ -88,7 +86,7 @@ final class WindowChrome {
     }
 
     static void render(
-            DrawContext context,
+            GuiGraphics context,
             ClientRuntime runtime,
             UiWindowManager.WindowState state,
             UiWindowManager.Rect bounds,
@@ -106,7 +104,7 @@ final class WindowChrome {
                     runtime.color(SHADOW));
         }
         context.fillGradient(x, y, x + w, y + h, runtime.color(PANEL), runtime.color(PANEL_BOTTOM));
-        context.drawBorder(x, y, w, h, runtime.color(BORDER));
+        context.renderOutline(x, y, w, h, runtime.color(BORDER));
         context.fill(x + 1, y + 1, x + w - 1, y + 2, runtime.color(EDGE_LIGHT));
         context.fill(x + 1, y + 2, x + 2, y + h - 1, runtime.color(EDGE_SIDE));
         context.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, runtime.color(EDGE_DARK));
@@ -129,10 +127,10 @@ final class WindowChrome {
         if (controls) {
             titleEnd = actionBounds(state, bounds, actions(state).get(0)).x();
         }
-        var text = MinecraftClient.getInstance().textRenderer;
-        context.drawText(
+        var text = Minecraft.getInstance().font;
+        context.drawString(
                 text,
-                text.trimToWidth(
+                text.plainSubstrByWidth(
                         runtime.title(state),
                         Math.max(0, titleEnd - x - 2 * WINDOW_TITLE_PADDING_X)),
                 x + WINDOW_TITLE_PADDING_X,
@@ -142,7 +140,7 @@ final class WindowChrome {
         if (!controls) {
             return;
         }
-        context.draw();
+        context.flush();
         boolean blending = GL11.glIsEnabled(GL11.GL_BLEND);
         RenderSystem.enableBlend();
         try {
@@ -161,7 +159,7 @@ final class WindowChrome {
                                     action == Action.CLOSE ? CONTROL_CLOSE_HOVER : CONTROL_HOVER));
                 }
                 var icon = action == Action.PIN && state.pinned() ? PINNED : action.icon;
-                context.drawTexture(
+                context.blit(
                         icon,
                         area.x() + (area.width() - CONTROL_ICON_SIZE) / 2,
                         area.y() + (area.height() - CONTROL_ICON_SIZE) / 2,
@@ -174,7 +172,7 @@ final class WindowChrome {
                         CONTROL_TEXTURE_SIZE,
                         CONTROL_TEXTURE_SIZE);
             }
-            context.draw();
+            context.flush();
         } finally {
             if (!blending) {
                 RenderSystem.disableBlend();

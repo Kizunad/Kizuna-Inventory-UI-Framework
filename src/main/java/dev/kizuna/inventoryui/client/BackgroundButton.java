@@ -2,13 +2,13 @@ package dev.kizuna.inventoryui.client;
 
 import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.network.chat.Component;
 
 /** 背景卡片沿用 56 px 行高与底部标题遮罩，选中项显示强调边框。 */
-final class BackgroundButton extends ButtonWidget {
+final class BackgroundButton extends Button {
     static final int HEIGHT = 56;
     private static final int LABEL_TOP = 38;
     private static final int LABEL_X = 6;
@@ -29,15 +29,15 @@ final class BackgroundButton extends ButtonWidget {
                 y,
                 width,
                 HEIGHT,
-                Text.literal(label),
+                Component.literal(label),
                 ignored -> action.run(),
-                DEFAULT_NARRATION_SUPPLIER);
+                DEFAULT_NARRATION);
         this.runtime = runtime;
         this.id = id;
     }
 
     @Override
-    public void renderButton(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
         // 缺失缩略图保留主题底色，选择结果仅在资源成功载入后更新。
         context.fill(
                 getX(), getY(), getX() + getWidth(), getY() + getHeight(), runtime.color(CONTROL));
@@ -59,15 +59,15 @@ final class BackgroundButton extends ButtonWidget {
                 getX() + getWidth(),
                 getY() + getHeight(),
                 runtime.color(HUD_BACKGROUND));
-        var text = MinecraftClient.getInstance().textRenderer;
-        context.drawText(
+        var text = Minecraft.getInstance().font;
+        context.drawString(
                 text,
-                text.trimToWidth(getMessage().getString(), getWidth() - 2 * LABEL_X),
+                text.plainSubstrByWidth(getMessage().getString(), getWidth() - 2 * LABEL_X),
                 getX() + LABEL_X,
                 getY() + LABEL_Y,
                 runtime.color(HUD_TEXT),
                 false);
-        context.drawBorder(
+        context.renderOutline(
                 getX(),
                 getY(),
                 getWidth(),
