@@ -11,7 +11,7 @@
 | `src/main/proto/kizuna/inventoryui/v2/wire.proto` | `Envelope`、`Kind`、`Direction`、`Capability`；统一信封与模块协商 |
 | `src/main/proto/kizuna/inventoryui/v2/inventory.proto` | 库存快照、增量、容器、物品、占格和移动意图；不包含仓库等业务事务 |
 
-在仓库根目录运行（Java 17）：
+在仓库根目录运行（Java 25）：
 
 ```bash
 ./gradlew generateProto protocolZip
@@ -159,6 +159,6 @@ schema 演进必须保留已有字段编号和含义；删除字段时将编号�
 
 ## 复现实机通信验收
 
-在 Java 17 与 Linux 图形环境（或已安装 Xvfb）下运行 `python3 scripts/wire_smoke.py`。脚本只使用 `build/wire-server/`、`build/wire-client/`，监听 `127.0.0.1:25576`，建立离线测试世界；对应端口需空闲。测试夹具位于 `src/wireSmoke/`，不进入框架或 demo JAR。
+在 Java 25 与 Linux 图形环境（或已安装 Xvfb）下运行 `python3 scripts/wire_smoke.py`。脚本只使用 `build/wire-server/`、`build/wire-client/`，监听 `127.0.0.1:25576`，建立离线测试世界；对应端口需空闲。测试夹具位于 `src/wireSmoke/`，不进入框架或 demo JAR。
 
 成功后两端分别生成 `wire-server-ok.txt`、`wire-client-ok.txt`，客户端另存游戏内固定窗口截图 `screenshots/pinned-hud.png`。脚本每次清除旧成功标记并检查本轮进程退出状态；服务端在测试客户端断开后关闭。日志为 `build/wire-server.log` 与 `build/wire-client.log`。

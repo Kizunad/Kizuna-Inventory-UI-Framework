@@ -6,7 +6,7 @@
 
 HUD 注册项描述稳定 ID、标题、内容工厂、数据源、默认锚点和尺寸，以及是否允许移动、缩放或隐藏。框架据此生成 HUD 管理列表，不要求修改公共枚举。
 
-`FrameworkCatalog.Hud(id, title, anchor, width, height)` 声明元数据，`ClientBindings.hud(id, renderer)` 提供绘制实现。回调接收已经移动到 HUD 左上角并缩放的 `GuiGraphics`、逻辑宽高和 tick delta。工作台关闭时 Fabric HUD 回调继续绘制；工作台的“HUD 布局”入口提供预览、显隐、位置、缩放和复位。游戏 F1 隐藏 HUD 时也隐藏这些部件。
+`FrameworkCatalog.Hud(id, title, anchor, width, height)` 声明元数据，`ClientBindings.hud(id, renderer)` 提供绘制实现。回调接收已经移动到 HUD 左上角并缩放的 `GuiGraphicsExtractor`（提交渲染状态，帧末统一绘制）、逻辑宽高和 tick delta。工作台关闭时 Fabric HUD 回调继续绘制；工作台的“HUD 布局”入口提供预览、显隐、位置、缩放和复位。游戏 F1 隐藏 HUD 时也隐藏这些部件。
 
 `ClientRuntime.hudLayout()` 返回 `HudLayout`。`place(id, new HudLayout.Placement(visible, offsetX, offsetY, scale))` 设置相对锚点的布局，缩放范围 0.25–4；`bounds()` 在视口变化时重新约束到屏幕内。偏好保存在本地版本化 JSON；布局面板菜单外可直接拖动 HUD，菜单也提供位置、缩放和复位操作。
 

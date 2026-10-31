@@ -1,29 +1,25 @@
 package dev.kizuna.inventoryui.client.component;
 
-import com.mojang.blaze3d.platform.Lighting;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 
-import io.wispforest.owo.ui.base.BaseComponent;
-import io.wispforest.owo.ui.core.OwoUIDrawContext;
+import io.wispforest.owo.ui.base.BaseUIComponent;
+import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.world.phys.AABB;
+import org.joml.Matrix3x2f;
 
-/** 旋转、缩放和自动适配的模型画布；模型几何、纹理与渲染实现由子 JAR 提供。 */
-public final class ModelPreviewComponent extends BaseComponent {
+/** 旋转、缩放和自动适配的模型画布；模型几何、纹理与渲染实现由子 JAR 提供，经 {@link ModelPreviewRenderer} 画中画绘制。 */
+public final class ModelPreviewComponent extends BaseUIComponent {
     private static final float NANOS_PER_SECOND = 1_000_000_000f;
     private static final float MAX_FRAME_SECONDS = 0.1f;
-    private static final float MODEL_DEPTH = 30f;
-    private static final float DEPTH_SCALE = 0.1f;
     private final Supplier<Model> model;
     private final ToIntFunction<String> colors;
     private final ModelPreviewCamera camera = new ModelPreviewCamera();
@@ -43,8 +39,9 @@ public final class ModelPreviewComponent extends BaseComponent {
 
     @Override
     public void draw(
-            OwoUIDrawContext context, int mouseX, int mouseY, float partialTicks, float delta) {
+            OwoUIGraphics context, int mouseX, int mouseY, float partialTicks, float delta) {
         // 用包围盒对角线适配任意模型，旋转后也不会因长边方向改变而突然缩放。
+        // 背景画在当前层；模型交给画中画渲染器，贴回的纹理与背景外框相交，层叠在背景之上。
         context.fill(
                 x, y, x + width, y + height, colors.applyAsInt(ThemeTokens.PREVIEW_BACKGROUND));
         var value = model.get();
@@ -57,33 +54,20 @@ public final class ModelPreviewComponent extends BaseComponent {
             camera.advance(Math.min(MAX_FRAME_SECONDS, (now - previousFrame) / NANOS_PER_SECOND));
         }
         previousFrame = now;
-        float scale = camera.scale(bounds, width, height);
-        var matrices = context.pose();
-        var buffers = Minecraft.getInstance().renderBuffers().bufferSource();
-        context.flush();
-        context.enableScissor(x, y, x + width, y + height);
-        matrices.pushPose();
-        try {
-            matrices.translate(x + width / 2f, y + height / 2f, MODEL_DEPTH);
-            matrices.scale(scale, value.yUp() ? -scale : scale, scale * DEPTH_SCALE);
-            matrices.mulPose(Axis.XP.rotationDegrees(camera.pitch()));
-            matrices.mulPose(Axis.YP.rotationDegrees(camera.yaw()));
-            var center = camera.center(bounds);
-            matrices.translate(-center.x, -center.y, -center.z);
-            Lighting.setupFor3DItems();
-            RenderSystem.enableDepthTest();
-            value.render(matrices, buffers, partialTicks);
-        } finally {
-            // 包括模块绘制异常在内，顶点缓冲、矩阵、裁剪和光照都必须恢复。
-            try {
-                buffers.endBatch();
-            } finally {
-                matrices.popPose();
-                context.disableScissor();
-                RenderSystem.disableDepthTest();
-                Lighting.setupFor3DItems();
-            }
-        }
+        context.guiRenderState.addPicturesInPictureState(
+                ModelPreviewRenderer.State.of(
+                        value,
+                        camera.yaw(),
+                        camera.pitch(),
+                        camera.center(bounds),
+                        partialTicks,
+                        x,
+                        y,
+                        x + width,
+                        y + height,
+                        camera.scale(bounds, width, height),
+                        new Matrix3x2f(context.pose()),
+                        context.scissorStack.peek()));
     }
 
     @Override
@@ -92,8 +76,9 @@ public final class ModelPreviewComponent extends BaseComponent {
     }
 
     @Override
-    public boolean onMouseDown(double x, double y, int button) {
+    public boolean onMouseDown(MouseButtonEvent click, boolean doubled) {
         // 右键切换自动旋转，中键复位，左键拖动同时控制水平角与俯仰角。
+        int button = click.button();
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
             camera.autoRotate(!camera.autoRotate());
             return true;
@@ -107,7 +92,7 @@ public final class ModelPreviewComponent extends BaseComponent {
     }
 
     @Override
-    public boolean onMouseDrag(double x, double y, double dx, double dy, int button) {
+    public boolean onMouseDrag(MouseButtonEvent click, double dx, double dy) {
         // 仅按下后拖动才旋转，鼠标经过画布不会改变模型朝向。
         if (rotating) {
             camera.drag(dx, dy);
@@ -116,7 +101,7 @@ public final class ModelPreviewComponent extends BaseComponent {
     }
 
     @Override
-    public boolean onMouseUp(double x, double y, int button) {
+    public boolean onMouseUp(MouseButtonEvent click) {
         boolean handled = rotating;
         rotating = false;
         return handled;
@@ -146,6 +131,7 @@ public final class ModelPreviewComponent extends BaseComponent {
             return true;
         }
 
-        void render(PoseStack matrices, MultiBufferSource buffers, float tickDelta);
+        /** 在画中画渲染阶段调用，矩阵原点为 {@link #bounds()} 坐标系的原点；提交到 collector，不立即绘制。 */
+        void render(PoseStack matrices, SubmitNodeCollector collector, float tickDelta);
     }
 }

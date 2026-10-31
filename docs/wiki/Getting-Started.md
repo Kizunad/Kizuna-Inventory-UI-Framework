@@ -6,10 +6,10 @@
 
 | 项目 | 当前构建版本 |
 |---|---|
-| Minecraft / Java | 1.20.1 / 17 |
-| Fabric Loader | 0.16.10 |
-| Fabric API | 0.92.3+1.20.1 |
-| owo-lib | 0.11.2+1.20 |
+| Minecraft / Java | 26.2 / 25 |
+| Fabric Loader | 0.20.1 |
+| Fabric API | 0.161.0+26.2 |
+| owo-lib | 0.13.1+26.2 |
 | protoc / Protobuf Java | 4.36.2；构建时生成代码，框架 JAR 内嵌运行库 |
 
 在仓库根目录运行：
@@ -19,9 +19,9 @@
 ./gradlew runDemo
 ```
 
-请先确保 `java -version` 为 17。构建需要相邻目录的 `Kizuna-Meridian-Mod-Framework` 仓库：`settings.gradle` 应用其 `scripts/workspace.gradle`，上表版本与 Gradle 8.14.6、Fabric Loom 1.13.6 都取自其中的版本目录 `scripts/libs.versions.toml`。`runDemo` 从标题页自动打开示例工作台；普通框架使用者进入世界后按 **I** 打开，键位可在游戏设置中修改。
+请先确保本机装有 JDK 25；Gradle 守护进程按 `gradle/gradle-daemon-jvm.properties` 自动选用本机 JDK 25。构建需要相邻目录的 `Kizuna-Meridian-Mod-Framework` 仓库：`settings.gradle` 应用其 `scripts/workspace.gradle`，上表版本与 Gradle 9.8.0、Fabric Loom 1.19.3 都取自其中的版本目录 `scripts/libs.versions.toml`。`runDemo` 从标题页自动打开示例工作台；普通框架使用者进入世界后按 **I** 打开，键位可在游戏设置中修改。
 
-`build/libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar` 为可加载的框架 JAR；`-demo.jar` 是独立示例模组，两者分别打包。框架不包含示例源码或模拟服务器。安装时同时提供 Fabric API 和 owo-lib；`-sources.jar` 和 `-demo-dev.jar` 不是运行产物。
+`build/libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar` 为可加载的框架 JAR；`-demo.jar` 是独立示例模组，两者分别打包。框架不包含示例源码或模拟服务器。安装时同时提供 Fabric API 和 owo-lib；`-sources.jar` 不是运行产物。
 
 Linux 无窗口环境可用 `xvfb-run -a ./gradlew runSmoke`。演示检查通过后生成 `build/smoke/smoke-ok.txt` 和 `build/smoke/screenshots/workspace.png`。这是客户端模拟数据验收；真实 Fabric 通道验收另运行 `python3 scripts/wire_smoke.py`，详见[服务器通信](Server-Communication.md)。新增外框与背景截图为 `window-chrome.png`、`background-gallery.png`。
 

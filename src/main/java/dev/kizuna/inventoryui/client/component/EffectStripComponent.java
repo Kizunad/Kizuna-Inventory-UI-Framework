@@ -1,22 +1,21 @@
 package dev.kizuna.inventoryui.client.component;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 
-import io.wispforest.owo.ui.base.BaseComponent;
-import io.wispforest.owo.ui.core.OwoUIDrawContext;
+import io.wispforest.owo.ui.base.BaseUIComponent;
+import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /** 动态状态图标条；标签、层数、时长文案和操作全部由模块投影。 */
-public final class EffectStripComponent extends BaseComponent {
+public final class EffectStripComponent extends BaseUIComponent {
     private static final int CELL_SIZE = 24;
     private static final int GAP = 2;
     private static final int TEXT_INSET = 2;
@@ -48,7 +47,7 @@ public final class EffectStripComponent extends BaseComponent {
 
     @Override
     public void draw(
-            OwoUIDrawContext context, int mouseX, int mouseY, float partialTicks, float delta) {
+            OwoUIGraphics context, int mouseX, int mouseY, float partialTicks, float delta) {
         // 可见区域内按容量分页，效果数量动态变化也不会画到所属窗口外。
         int capacity = Math.max(1, width / (CELL_SIZE + GAP));
         offset = Math.max(0, Math.min(offset, Math.max(0, visible.size() - capacity)));
@@ -63,12 +62,23 @@ public final class EffectStripComponent extends BaseComponent {
                     left + CELL_SIZE,
                     y + CELL_SIZE,
                     colors.applyAsInt(ThemeTokens.HEADER));
-            var icon = ResourceLocation.tryParse(effect.iconId());
+            var icon = Identifier.tryParse(effect.iconId());
             if (icon != null && client.getResourceManager().getResource(icon).isPresent()) {
-                RenderSystem.enableBlend();
-                context.blit(icon, left, y, CELL_SIZE, CELL_SIZE, 0, 0, 1, 1, 1, 1);
+                context.blit(
+                        RenderPipelines.GUI_TEXTURED,
+                        icon,
+                        left,
+                        y,
+                        0,
+                        0,
+                        CELL_SIZE,
+                        CELL_SIZE,
+                        1,
+                        1,
+                        1,
+                        1);
             }
-            context.drawString(
+            context.text(
                     client.font,
                     client.font.plainSubstrByWidth(effect.badge(), CELL_SIZE),
                     left + TEXT_INSET,

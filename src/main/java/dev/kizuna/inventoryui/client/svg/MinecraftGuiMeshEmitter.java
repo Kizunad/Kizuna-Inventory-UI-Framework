@@ -1,24 +1,36 @@
 package dev.kizuna.inventoryui.client.svg;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.util.Objects;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.util.FastColor.ARGB32;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
+import net.minecraft.client.gui.render.TextureSetup;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.state.gui.GuiElementRenderState;
+import net.minecraft.util.ARGB;
+import net.minecraft.util.Mth;
+import org.joml.Matrix3x2f;
+import org.joml.Matrix3x2fc;
 
-/** 将 SVG 三角形以 GUI QUADS 的退化 quad 形式提交给 Minecraft。 */
+/** 将 SVG 三角形作为 GUI 渲染状态提交，由原版 GUI 渲染器按 QUADS 退化 quad 构建顶点。 */
 public final class MinecraftGuiMeshEmitter {
     private static final int CHANNEL_MAX = 255;
     public static final int MAX_VERTICES = SvgTessellator.MAX_TRIANGLES * 3;
 
-    public void emit(GuiGraphics context, SvgMesh mesh, int x, int y, float scale, int tint) {
+    public void emit(GuiGraphicsExtractor context, SvgMesh mesh, int x, int y, float scale, int tint) {
         emit(context, mesh, x, y, scale, scale, tint);
     }
 
     public void emit(
-            GuiGraphics context, SvgMesh mesh, int x, int y, float scaleX, float scaleY, int tint) {
-        // 校验缩放与预算后复用当前 GUI 缓冲，不改变调用方的矩阵和裁剪。
+            GuiGraphicsExtractor context,
+            SvgMesh mesh,
+            int x,
+            int y,
+            float scaleX,
+            float scaleY,
+            int tint) {
+        // 校验缩放与预算后记录当前 GUI 矩阵与裁剪的快照，顶点在 GUI 渲染器准备阶段才构建。
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(mesh, "mesh");
         if (!Float.isFinite(scaleX)
@@ -30,20 +42,20 @@ public final class MinecraftGuiMeshEmitter {
         if (mesh.vertexCount() > MAX_VERTICES) {
             throw new IllegalArgumentException("SVG mesh 顶点数量超过预算: " + MAX_VERTICES);
         }
-        PoseStack.Pose matrix = context.pose().last();
-        VertexConsumer buffer = context.bufferSource().getBuffer(RenderType.gui());
-        for (SvgMesh.Triangle triangle : mesh.triangles()) {
-            // GUI layer 开启背面剔除，绕序必须与 GuiGraphics.fill 一致；末点重复形成退化 quad。
-            for (int index = 0; index < 4; index++) {
-                emitVertex(
-                        buffer, matrix, guiQuadVertex(triangle, index), x, y, scaleX, scaleY, tint);
-            }
-        }
-        // 调用方在 SVG 与 GUI 命令切换时统一提交，连续 SVG 几何仍可共用缓冲。
+        context.guiRenderState.addGuiElement(
+                MeshRenderState.of(
+                        new Matrix3x2f(context.pose()),
+                        mesh,
+                        x,
+                        y,
+                        scaleX,
+                        scaleY,
+                        tint,
+                        context.scissorStack.peek()));
     }
 
     static SvgMesh.Vertex guiQuadVertex(SvgMesh.Triangle triangle, int index) {
-        // GUI 背面剔除要求反转三角绕序，重复末点补足四边形。
+        // GUI 管线开启背面剔除，绕序必须与 fill 一致：反转三角绕序，重复末点补足四边形。
         Objects.requireNonNull(triangle, "triangle");
         return switch (index) {
             case 0 -> triangle.a();
@@ -53,36 +65,71 @@ public final class MinecraftGuiMeshEmitter {
         };
     }
 
-    private static void emitVertex(
-            VertexConsumer buffer,
-            PoseStack.Pose matrix,
-            SvgMesh.Vertex vertex,
+    static int tint(int color, int tint) {
+        // 八位颜色通道按归一化乘法叠加，不把 tint 当作覆盖色。
+        return ARGB.color(
+                ARGB.alpha(color) * ARGB.alpha(tint) / CHANNEL_MAX,
+                ARGB.red(color) * ARGB.red(tint) / CHANNEL_MAX,
+                ARGB.green(color) * ARGB.green(tint) / CHANNEL_MAX,
+                ARGB.blue(color) * ARGB.blue(tint) / CHANNEL_MAX);
+    }
+
+    /** 一次 SVG 绘制：画布坐标经 (x, y) 平移与 scaleX/scaleY 缩放到 GUI 坐标，再乘提交时的 GUI 矩阵。 */
+    private record MeshRenderState(
+            Matrix3x2fc pose,
+            SvgMesh mesh,
             int x,
             int y,
             float scaleX,
             float scaleY,
-            int tint) {
-        // 保持当前 GUI 矩阵，颜色与外部 tint 按通道相乘。
-        int color = tint(vertex.color(), tint);
-        buffer.vertex(
-                        matrix.pose(),
-                        x + vertex.x() * scaleX,
-                        y + vertex.y() * scaleY,
-                        0.0f)
-                .color(
-                        ARGB32.red(color),
-                        ARGB32.green(color),
-                        ARGB32.blue(color),
-                        ARGB32.alpha(color))
-                .endVertex();
-    }
+            int tint,
+            ScreenRectangle scissorArea,
+            ScreenRectangle bounds)
+            implements GuiElementRenderState {
+        static MeshRenderState of(
+                Matrix3x2fc pose,
+                SvgMesh mesh,
+                int x,
+                int y,
+                float scaleX,
+                float scaleY,
+                int tint,
+                ScreenRectangle scissorArea) {
+            // 细分器保证网格落在画布内，画布矩形即几何外框；GUI 渲染器按外框决定层叠，无外框的元素不绘制。
+            var bounds =
+                    new ScreenRectangle(
+                                    x,
+                                    y,
+                                    Mth.ceil(mesh.width() * scaleX),
+                                    Mth.ceil(mesh.height() * scaleY))
+                            .transformMaxBounds(pose);
+            if (scissorArea != null) {
+                bounds = scissorArea.intersection(bounds);
+            }
+            return new MeshRenderState(
+                    pose, mesh, x, y, scaleX, scaleY, tint, scissorArea, bounds);
+        }
 
-    static int tint(int color, int tint) {
-        // 八位颜色通道按归一化乘法叠加，不把 tint 当作覆盖色。
-        return ARGB32.color(
-                ARGB32.alpha(color) * ARGB32.alpha(tint) / CHANNEL_MAX,
-                ARGB32.red(color) * ARGB32.red(tint) / CHANNEL_MAX,
-                ARGB32.green(color) * ARGB32.green(tint) / CHANNEL_MAX,
-                ARGB32.blue(color) * ARGB32.blue(tint) / CHANNEL_MAX);
+        @Override
+        public void buildVertices(VertexConsumer buffer) {
+            for (SvgMesh.Triangle triangle : mesh.triangles()) {
+                for (int index = 0; index < 4; index++) {
+                    var vertex = guiQuadVertex(triangle, index);
+                    buffer.addVertexWith2DPose(
+                                    pose, x + vertex.x() * scaleX, y + vertex.y() * scaleY)
+                            .setColor(MinecraftGuiMeshEmitter.tint(vertex.color(), tint));
+                }
+            }
+        }
+
+        @Override
+        public RenderPipeline pipeline() {
+            return RenderPipelines.GUI;
+        }
+
+        @Override
+        public TextureSetup textureSetup() {
+            return TextureSetup.noTexture();
+        }
     }
 }

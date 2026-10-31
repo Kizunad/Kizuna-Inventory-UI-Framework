@@ -4,7 +4,7 @@
 
 ## 已实现
 
-- Java 17 独立构建，框架、源码及独立 demo JAR；主框架不依赖 demo。
+- Java 25 独立构建，框架、源码及独立 demo JAR；主框架不依赖 demo。
 - 模块依赖、命名空间、注册原子校验；窗口／功能／HUD／栏位／主题／背景注册及消息契约绑定。
 - 工作台搜索／分页／固定入口，动态窗口栏，单例及对象实例，拖动／文本尺寸调整／最小化与恢复动画／固定到 HUD，scope 清理。
 - 不可变库存快照、共享状态、稀疏占格校验、原子增量和完整重同步回调。
@@ -16,7 +16,13 @@
 
 ## 当前验证
 
-Java 17：
+Minecraft 26.2 / Java 25（2026-10-31）：
+
+- `./gradlew test build`：87 个测试通过（根 69、server 18），零失败／错误／跳过；框架／源码／demo／proto ZIP 可构建。
+- `./gradlew runDemo`（Linux Xvfb，人工操作截图）：HUD 预览里的 SVG 徽标按主题色绘制；公共组件窗口的模型预览朝向、剔除、光照、窗口裁剪、自动旋转与拖动俯仰正常。26.2 的物品数据组件进入世界后才绑定，示例模型改为原版工作台方块模型。
+- `runSmoke` 与 `python3 scripts/wire_smoke.py` 未通过，失败与迁移前相同：前者停在「drag must submit an accepted move through the component」，后者客户端已进服并收到 `MODULE_MISSING` 后超时。
+
+Java 17 / Minecraft 1.20.1（历史记录）：
 
 - `./gradlew test build compileWireSmokeJava --offline`：2026-10-07 以 Java 17 验证，68 个测试通过，零失败／错误／跳过，框架／源码／demo／proto ZIP 可构建。
 - `xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runSmoke --offline`：真实客户端加载、接受／拒绝移动、跨窗投递、分堆总数守恒、底栏绑定不改库存、主题／HUD、公共组件／模型绘制、关闭取消拖动与 scope 清理；新增尺寸输入、标题栏固定、最小化隐藏 HUD、恢复保留实例及背景卡片。

@@ -16,7 +16,7 @@
 
 ![Windows Native 实机录制：依次拖动示例库存与共享状态窗口](docs/media/window-drag.gif)
 
-使用 Java 17 运行 `./gradlew runDemo` 可体验同一示例；`./gradlew test build` 执行测试并构建。框架产物为 `build/libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar`，独立示例为同目录的 `-demo.jar`。运行时需要 Fabric API 和 owo-lib，详见[接入指南](docs/wiki/Getting-Started.md)。
+使用 Java 25 运行 `./gradlew runDemo` 可体验同一示例；`./gradlew test build` 执行测试并构建。框架产物为 `build/libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar`，独立示例为同目录的 `-demo.jar`。运行时需要 Fabric API 和 owo-lib，详见[接入指南](docs/wiki/Getting-Started.md)。
 
 ## 目标
 
@@ -26,7 +26,7 @@
 - 明确服务器输入、客户端输出、模块缺失、协议不兼容和请求失败的行为。
 - 独立演示环境使用模拟数据验证框架，无需部署业务服务端。
 
-首个游戏适配目标为 **Minecraft 1.20.1 / Fabric / Java 17 / owo-lib**。框架 JAR 仍有这些运行时依赖；独立仓库不代表脱离 Minecraft 运行，也不代表子 JAR 可以在运行中卸载。
+首个游戏适配目标为 **Minecraft 26.2 / Fabric / Java 25 / owo-lib**。框架 JAR 仍有这些运行时依赖；独立仓库不代表脱离 Minecraft 运行，也不代表子 JAR 可以在运行中卸载。
 
 ## 建议的主屏交互
 

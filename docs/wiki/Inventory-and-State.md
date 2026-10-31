@@ -57,7 +57,7 @@ var grid = new InventoryGridComponent(
 
 `grid.presentation(provider, runtime.contextMenu())` 接入 `ItemPresentation`，可提供多行 tooltip、主题边框令牌、右键操作列表、双击详情和 Shift 快速操作。`ItemAction` 定义 ID、标题、启用状态、禁用原因及动作；菜单支持方向键、Enter、Escape 和滚轮。权威快照更新使旧菜单失效。业务详情窗口始终由模块注册。
 
-`ModelPreviewComponent(width, height, modelSupplier, colors)` 接收 `Model`，实现 `bounds()` 与 `render(matrices, buffers, tickDelta)`，可选覆盖 `yUp()`。画布按包围盒适配模型，左键拖动旋转、滚轮缩放，渲染结束恢复上下文。模型资源及玩家实体适配属于子 JAR。
+`ModelPreviewComponent(width, height, modelSupplier, colors)` 接收 `Model`，实现 `bounds()` 与 `render(matrices, collector, tickDelta)`，可选覆盖 `yUp()`。`render` 在画中画渲染阶段调用，把模型提交到 `SubmitNodeCollector`，由 `ModelPreviewRenderer` 画进独立纹理再贴回画布。画布按包围盒适配模型，左键拖动旋转、滚轮缩放。模型资源及玩家实体适配属于子 JAR。
 
 `StatusBarComponent` 接收 `Value(label, current, maximum, fillToken, tooltip)`；`EffectStripComponent` 接收动态 `List<Effect>`，空列表收起，多项可滚动。两者都不内置角色属性或状态规则。
 

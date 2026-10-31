@@ -1,7 +1,7 @@
 package dev.kizuna.inventoryui.client.component;
 
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.core.Component;
+import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.Size;
 import io.wispforest.owo.ui.core.Sizing;
 import java.util.Objects;
@@ -13,7 +13,7 @@ public final class ResponsiveLayout extends FlowLayout {
     private int arrangedWidth = -1;
     private int arrangedHeight = -1;
 
-    public ResponsiveLayout(Component content, BiConsumer<Integer, Integer> arrange) {
+    public ResponsiveLayout(UIComponent content, BiConsumer<Integer, Integer> arrange) {
         // 模块保留组件、选择和滚动状态；框架只提供尺寸通知，不猜测业务断点。
         super(Sizing.fill(100), Sizing.fill(100), Algorithm.VERTICAL);
         this.arrange = Objects.requireNonNull(arrange, "arrange must not be null");

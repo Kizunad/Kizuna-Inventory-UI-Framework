@@ -11,7 +11,7 @@ public interface ItemPresentation {
     ItemPresentation DEFAULT = new ItemPresentation() {};
 
     default void draw(
-            net.minecraft.client.gui.GuiGraphics context,
+            net.minecraft.client.gui.GuiGraphicsExtractor context,
             InventorySnapshot.Item item,
             int count,
             boolean rotated,

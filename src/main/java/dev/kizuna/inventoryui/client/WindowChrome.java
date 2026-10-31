@@ -3,15 +3,13 @@ package dev.kizuna.inventoryui.client;
 import static dev.kizuna.inventoryui.client.WorkspaceMetrics.*;
 import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-
 import dev.kizuna.inventoryui.window.UiWindowManager;
-import org.lwjgl.opengl.GL11;
 
 import java.util.List;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
 
 /** 工作台与固定 HUD 共用外框；按钮绘制和点击都读取相同的动作矩形。 */
 final class WindowChrome {
@@ -31,16 +29,16 @@ final class WindowChrome {
         MINIMIZE("minus"),
         PIN("lock-keyhole-open"),
         CLOSE("x");
-        final ResourceLocation icon;
+        final Identifier icon;
 
         Action(String icon) {
             this.icon =
-                    new ResourceLocation("kizuna_inventory_ui", "textures/gui/window/" + icon + ".png");
+                    Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "textures/gui/window/" + icon + ".png");
         }
     }
 
-    private static final ResourceLocation PINNED =
-            new ResourceLocation("kizuna_inventory_ui", "textures/gui/window/lock-keyhole.png");
+    private static final Identifier PINNED =
+            Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "textures/gui/window/lock-keyhole.png");
 
     private static final List<Action> WINDOW_ACTIONS =
             List.of(Action.SIZE, Action.MINIMIZE, Action.PIN, Action.CLOSE);
@@ -86,7 +84,7 @@ final class WindowChrome {
     }
 
     static void render(
-            GuiGraphics context,
+            GuiGraphicsExtractor context,
             ClientRuntime runtime,
             UiWindowManager.WindowState state,
             UiWindowManager.Rect bounds,
@@ -104,7 +102,7 @@ final class WindowChrome {
                     runtime.color(SHADOW));
         }
         context.fillGradient(x, y, x + w, y + h, runtime.color(PANEL), runtime.color(PANEL_BOTTOM));
-        context.renderOutline(x, y, w, h, runtime.color(BORDER));
+        context.outline(x, y, w, h, runtime.color(BORDER));
         context.fill(x + 1, y + 1, x + w - 1, y + 2, runtime.color(EDGE_LIGHT));
         context.fill(x + 1, y + 2, x + 2, y + h - 1, runtime.color(EDGE_SIDE));
         context.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, runtime.color(EDGE_DARK));
@@ -128,7 +126,7 @@ final class WindowChrome {
             titleEnd = actionBounds(state, bounds, actions(state).get(0)).x();
         }
         var text = Minecraft.getInstance().font;
-        context.drawString(
+        context.text(
                 text,
                 text.plainSubstrByWidth(
                         runtime.title(state),
@@ -140,43 +138,35 @@ final class WindowChrome {
         if (!controls) {
             return;
         }
-        context.flush();
-        boolean blending = GL11.glIsEnabled(GL11.GL_BLEND);
-        RenderSystem.enableBlend();
-        try {
-            for (Action action : actions(state)) {
-                var area = actionBounds(state, bounds, action);
-                if (area == null) {
-                    continue;
-                }
-                if (area.contains(mouseX, mouseY)) {
-                    context.fill(
-                            area.x() + 1,
-                            area.y() + 1,
-                            area.x() + area.width() - 1,
-                            area.y() + area.height() - 1,
-                            runtime.color(
-                                    action == Action.CLOSE ? CONTROL_CLOSE_HOVER : CONTROL_HOVER));
-                }
-                var icon = action == Action.PIN && state.pinned() ? PINNED : action.icon;
-                context.blit(
-                        icon,
-                        area.x() + (area.width() - CONTROL_ICON_SIZE) / 2,
-                        area.y() + (area.height() - CONTROL_ICON_SIZE) / 2,
-                        CONTROL_ICON_SIZE,
-                        CONTROL_ICON_SIZE,
-                        0,
-                        0,
-                        CONTROL_TEXTURE_SIZE,
-                        CONTROL_TEXTURE_SIZE,
-                        CONTROL_TEXTURE_SIZE,
-                        CONTROL_TEXTURE_SIZE);
+        // 图标走半透明 GUI 纹理管线，整张贴图缩放到按钮图标尺寸。
+        for (Action action : actions(state)) {
+            var area = actionBounds(state, bounds, action);
+            if (area == null) {
+                continue;
             }
-            context.flush();
-        } finally {
-            if (!blending) {
-                RenderSystem.disableBlend();
+            if (area.contains(mouseX, mouseY)) {
+                context.fill(
+                        area.x() + 1,
+                        area.y() + 1,
+                        area.x() + area.width() - 1,
+                        area.y() + area.height() - 1,
+                        runtime.color(
+                                action == Action.CLOSE ? CONTROL_CLOSE_HOVER : CONTROL_HOVER));
             }
+            var icon = action == Action.PIN && state.pinned() ? PINNED : action.icon;
+            context.blit(
+                    RenderPipelines.GUI_TEXTURED,
+                    icon,
+                    area.x() + (area.width() - CONTROL_ICON_SIZE) / 2,
+                    area.y() + (area.height() - CONTROL_ICON_SIZE) / 2,
+                    0,
+                    0,
+                    CONTROL_ICON_SIZE,
+                    CONTROL_ICON_SIZE,
+                    CONTROL_TEXTURE_SIZE,
+                    CONTROL_TEXTURE_SIZE,
+                    CONTROL_TEXTURE_SIZE,
+                    CONTROL_TEXTURE_SIZE);
         }
     }
 }

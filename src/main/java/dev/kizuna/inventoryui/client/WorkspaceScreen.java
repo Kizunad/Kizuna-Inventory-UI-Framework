@@ -3,7 +3,6 @@ package dev.kizuna.inventoryui.client;
 import static dev.kizuna.inventoryui.client.WorkspaceMetrics.*;
 import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 
 import dev.kizuna.inventoryui.client.component.ItemDrawing;
 import dev.kizuna.inventoryui.hud.HudLayout;
@@ -18,9 +17,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
 /** 工作台外壳：目录与外观是明确入口，业务窗口由注册目录生成。 */
@@ -263,7 +265,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                         new Row(
                                 "打开背景目录",
                                 () ->
-                                        net.minecraft.Util.getPlatform()
+                                        net.minecraft.util.Util.getPlatform()
                                                 .openFile(
                                                         runtime.localBackgrounds()
                                                                 .directory()
@@ -453,16 +455,22 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     }
 
     @Override
-    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        // 游戏内直接透出已绘制的世界，不叠加原版模糊和暗幕，也不修改玩家视角；字幕仍按原版排在背景层。
+        // 无世界的独立演示沿用原版菜单背景，避免透明区域没有底色。
+        if (minecraft.level == null) {
+            super.extractBackground(context, mouseX, mouseY, delta);
+        } else {
+            minecraft.gui.hud.extractDeferredSubtitles();
+        }
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // 窗口或固定入口增减后同步可用区域，底部不保留空行。
         if (bottomBarHeight != runtime.bottomBarHeight()) {
             updateViewport();
             rebuildControls();
-        }
-        // 游戏内直接透出已绘制的世界，不叠加原版暗幕，也不修改玩家视角。
-        // 无世界的独立演示仍需清理背景，避免把上一帧的窗口留在透明区域。
-        if (minecraft.level == null) {
-            renderBackground(context);
         }
         context.fill(0, 0, width, height, runtime.color(BACKGROUND));
         runtime.renderBackground(context, width, height);
@@ -491,13 +499,14 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             displayed.put(state.key(), bounds);
             runtime.renderWindow(context, state, bounds, !state.minimized(), mouseX, mouseY, delta);
         }
-        clearDepth(context);
+        // HUD 预览、底栏与菜单各自另起一层，整体压在所有窗口之上。
+        context.nextStratum();
         if (panel == Panel.HUD) {
             runtime.renderHuds(context, width, height, delta);
             for (var hud : runtime.catalog().huds().values()) {
                 if (runtime.hudLayout().placement(hud.id()).visible()) {
                     var bounds = runtime.hudLayout().bounds(hud.id(), width, height);
-                    context.renderOutline(
+                    context.outline(
                             bounds.x(),
                             bounds.y(),
                             bounds.width(),
@@ -506,7 +515,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                 }
             }
         }
-        clearDepth(context);
+        context.nextStratum();
         drawMinimizedWindows(context, states, mouseX, mouseY);
         if (panel != Panel.NONE) {
             context.fill(
@@ -515,7 +524,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                     Math.min(width - TOOLBAR_PADDING, TOOLBAR_PADDING + MENU_WIDTH),
                     menuBottom,
                     runtime.color(MENU));
-            context.renderOutline(
+            context.outline(
                     TOOLBAR_PADDING,
                     TOOLBAR_HEIGHT,
                     Math.min(width - 2 * TOOLBAR_PADDING, MENU_WIDTH),
@@ -530,7 +539,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                     SIZE_PANEL_HEIGHT,
                     runtime.color(MENU));
         }
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
         runtime.contextMenu().render(context, width, height, mouseX, mouseY, runtime::color);
         var payload = runtime.drag().current();
         if (payload != null) {
@@ -546,20 +555,13 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                     runtime::color);
         }
         if (!notice.isEmpty()) {
-            context.drawString(
+            context.text(
                     font,
                     font.plainSubstrByWidth(notice, width - 2 * NOTICE_INSET),
                     NOTICE_INSET,
                     height - bottomBarHeight - NOTICE_BOTTOM_GAP,
                     runtime.color(ACCENT));
         }
-    }
-
-    private static void clearDepth(GuiGraphics context) {
-        // 先提交已排队的绘制再清深度；否则 owo 局部深度会错误遮住后续窗口。
-        context.flush();
-        RenderSystem.clear(
-                org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
     }
 
     private int minimizedWidth(UiWindowManager.WindowState state) {
@@ -595,7 +597,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     }
 
     private void drawMinimizedWindows(
-            GuiGraphics context, List<UiWindowManager.WindowState> states, int mouseX, int mouseY) {
+            GuiGraphicsExtractor context, List<UiWindowManager.WindowState> states, int mouseX, int mouseY) {
         // 没有缩小窗口就不绘制底部内容；正常窗口不会同时出现第二个页签。
         if (anchors.isEmpty()) {
             return;
@@ -644,8 +646,11 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     }
 
     @Override
-    public boolean mouseClicked(double x, double y, int button) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         // 菜单打开时拦截底层交互，其余依次处理栏位、标题栏和窗口内容。
+        double x = event.x();
+        double y = event.y();
+        int button = event.button();
         notice = "";
         if (runtime.contextMenu().click(x, y, button)) {
             return true;
@@ -670,7 +675,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             }
         }
         if (y < TOOLBAR_HEIGHT || panel != Panel.NONE || sizeTarget != null) {
-            return super.mouseClicked(x, y, button);
+            return super.mouseClicked(event, doubleClick);
         }
         if (y >= height - bottomBarHeight) {
             if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
@@ -728,13 +733,15 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         // 保存按下时的目标，后续拖动和释放继续交给同一组件树；坐标转为适配器局部值。
         var view = runtime.view(focused);
         if (view != null) {
-            view.adapter.mouseClicked(x - view.adapter.x(), y - view.adapter.y(), button);
+            view.adapter.mouseClicked(view.local(event), doubleClick);
         }
         return true;
     }
 
     @Override
-    public boolean mouseDragged(double x, double y, int button, double dx, double dy) {
+    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
+        double x = event.x();
+        double y = event.y();
         if (draggingHud != null) {
             moveHud(draggingHud, (int) dx, (int) dy);
             return true;
@@ -762,13 +769,15 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         }
         var view = pressed == null ? null : runtime.view(pressed);
         return view != null
-                ? view.adapter.mouseDragged(
-                        x - view.adapter.x(), y - view.adapter.y(), button, dx, dy)
-                : super.mouseDragged(x, y, button, dx, dy);
+                ? view.adapter.mouseDragged(view.local(event), dx, dy)
+                : super.mouseDragged(event, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(double x, double y, int button) {
+    public boolean mouseReleased(MouseButtonEvent event) {
+        double x = event.x();
+        double y = event.y();
+        int button = event.button();
         if (draggingHud != null) {
             draggingHud = null;
             runtime.savePreferences();
@@ -808,13 +817,15 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         var view = pressed == null ? null : runtime.view(pressed);
         pressed = null;
         if (view != null) {
-            return view.adapter.mouseReleased(x - view.adapter.x(), y - view.adapter.y(), button);
+            return view.adapter.mouseReleased(view.local(event));
         }
-        return dragged || super.mouseReleased(x, y, button);
+        return dragged || super.mouseReleased(event);
     }
 
     @Override
-    public boolean mouseScrolled(double x, double y, double amount) {
+    public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
+        // 与旧版一致只按纵向滚动量处理；owo 适配器同样只把纵向量交给组件。
+        double amount = scrollY;
         if (runtime.contextMenu().isOpen()) {
             runtime.contextMenu().scroll(amount);
             return true;
@@ -826,7 +837,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         }
         // 只有最小化窗口溢出时才横向滚动；其余滚动交给鼠标所在的窗口内容。
         if (panel != Panel.NONE || sizeTarget != null) {
-            return super.mouseScrolled(x, y, amount);
+            return super.mouseScrolled(x, y, scrollX, scrollY);
         }
         if (y >= height - bottomBarHeight) {
             bottomOffset = Math.max(0, bottomOffset - (int) (amount * MINIMIZED_SCROLL_STEP));
@@ -835,11 +846,14 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         var state = hitWindow(x, y);
         var view = state == null ? null : runtime.view(state.key());
         return view != null
-                && view.adapter.mouseScrolled(x - view.adapter.x(), y - view.adapter.y(), amount);
+                && view.adapter.mouseScrolled(
+                        x - view.adapter.x(), y - view.adapter.y(), scrollX, scrollY);
     }
 
     @Override
-    public boolean keyPressed(int key, int scan, int modifiers) {
+    public boolean keyPressed(KeyEvent event) {
+        int key = event.key();
+        int modifiers = event.modifiers();
         if (sizeTarget != null) {
             if (key == GLFW.GLFW_KEY_ESCAPE) {
                 sizeTarget = null;
@@ -850,7 +864,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                 submitSize();
                 return true;
             }
-            return super.keyPressed(key, scan, modifiers);
+            return super.keyPressed(event);
         }
         if (runtime.contextMenu().key(key)) {
             return true;
@@ -892,22 +906,22 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                         : runtime.view(focused);
         if (key != GLFW.GLFW_KEY_ESCAPE
                 && view != null
-                && view.adapter.keyPressed(key, scan, modifiers)) {
+                && view.adapter.keyPressed(event)) {
             return true;
         }
-        return super.keyPressed(key, scan, modifiers);
+        return super.keyPressed(event);
     }
 
     @Override
-    public boolean charTyped(char chr, int modifiers) {
+    public boolean charTyped(CharacterEvent event) {
         // 菜单搜索与业务输入互斥，防止一个字符同时进入两个输入框。
         var view =
                 focused == null || panel != Panel.NONE || sizeTarget != null
                         ? null
                         : runtime.view(focused);
         return view != null
-                ? view.adapter.charTyped(chr, modifiers)
-                : super.charTyped(chr, modifiers);
+                ? view.adapter.charTyped(event)
+                : super.charTyped(event);
     }
 
     @Override

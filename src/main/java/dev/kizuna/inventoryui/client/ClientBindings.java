@@ -6,7 +6,7 @@ import dev.kizuna.inventoryui.protocol.UiWire;
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.window.UiWindowManager;
 
-import io.wispforest.owo.ui.core.Component;
+import io.wispforest.owo.ui.core.UIComponent;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,7 +15,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /** 一次性、按模块隔离的渲染注册。初始化结束后拒绝继续修改。 */
 public final class ClientBindings {
@@ -109,13 +109,13 @@ public final class ClientBindings {
     @FunctionalInterface
     public interface WindowFactory {
         /** 订阅清理注册到 state.scope()；每个窗口实例使用独立的组件树。 */
-        Component create(ClientRuntime runtime, UiWindowManager.WindowState state);
+        UIComponent create(ClientRuntime runtime, UiWindowManager.WindowState state);
     }
 
     @FunctionalInterface
     public interface HudRenderer {
         /** 坐标原点已移到 HUD 左上角，尺寸为定义中的逻辑尺寸。 */
-        void render(GuiGraphics context, int width, int height, float tickDelta);
+        void render(GuiGraphicsExtractor context, int width, int height, float tickDelta);
     }
 
     public record SlotContent(

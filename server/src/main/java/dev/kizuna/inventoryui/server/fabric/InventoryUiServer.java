@@ -5,11 +5,10 @@ import dev.kizuna.inventoryui.server.ServerProtocol;
 import dev.kizuna.inventoryui.server.ServerRouter;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import org.slf4j.Logger;
@@ -20,7 +19,7 @@ import java.util.Map;
 
 /** Fabric 逻辑服务器唯一通道所有者；单机和专用服务器共用模块路由。 */
 public final class InventoryUiServer implements ModInitializer {
-    public static final ResourceLocation CHANNEL = new ResourceLocation("kizuna_inventory_ui", "message");
+    public static final Identifier CHANNEL = UiPayload.TYPE.id();
     private static final Logger LOGGER = LoggerFactory.getLogger("kizuna_inventory_ui_server");
     private static final long RATE_WINDOW_NANOS = 1_000_000_000L;
     private static final int MAX_PACKETS_PER_WINDOW = 20;
@@ -29,6 +28,7 @@ public final class InventoryUiServer implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        UiPayload.register();
         // 所有模组的物品初始化完成后再注册业务；每次服务器启动使用全新服务与目录。
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             var next = new ServerModuleRegistry<ServerPlayer>();
@@ -52,29 +52,23 @@ public final class InventoryUiServer implements ModInitializer {
                 }
             });
         });
-        boolean registered = ServerPlayNetworking.registerGlobalReceiver(CHANNEL,
-                (server, player, handler, buffer, sender) -> {
-                    // 网络线程仅复制有界数据；身份、限流、路由及所有业务都回到主线程。
-                    if (buffer.readableBytes() > ServerProtocol.MAX_REQUEST_BYTES) {
+        boolean registered = ServerPlayNetworking.registerGlobalReceiver(UiPayload.TYPE,
+                (payload, context) -> {
+                    // Fabric 在服务器线程回调；超限请求直接丢弃，身份、限流与路由随后处理。
+                    if (payload.bytes().length > ServerProtocol.MAX_REQUEST_BYTES) {
                         return;
                     }
-                    byte[] bytes = new byte[buffer.readableBytes()];
-                    buffer.readBytes(bytes);
-                    server.execute(() -> {
-                        if (registry == null || !handler.isAcceptingMessages()
-                                || handler.player.connection != handler) {
-                            return;
-                        }
-                        var connection = connections.computeIfAbsent(handler, key -> new Connection(
-                                new ServerRouter<>(registry, () -> handler.player, envelope -> {
-                                    var packet = PacketByteBufs.create();
-                                    packet.writeBytes(envelope.toByteArray());
-                                    ServerPlayNetworking.send(handler.player, CHANNEL, packet);
-                                }, (message, failure) -> LOGGER.error(message, failure))));
-                        if (connection.allow()) {
-                            connection.router.receive(bytes);
-                        }
-                    });
+                    var handler = context.player().connection;
+                    if (registry == null || !handler.isAcceptingMessages()) {
+                        return;
+                    }
+                    var connection = connections.computeIfAbsent(handler, key -> new Connection(
+                            new ServerRouter<>(registry, () -> handler.player,
+                                    envelope -> ServerPlayNetworking.send(handler.player, new UiPayload(envelope.toByteArray())),
+                                    (message, failure) -> LOGGER.error(message, failure))));
+                    if (connection.allow()) {
+                        connection.router.receive(payload.bytes());
+                    }
                 });
         if (!registered) {
             // 旧业务模组仍独占通道时启动失败，避免用户遇到静默丢包或错误处理器。

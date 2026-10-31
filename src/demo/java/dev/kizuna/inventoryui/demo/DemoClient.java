@@ -11,6 +11,10 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.MouseButtonInfo;
 import org.lwjgl.glfw.GLFW;
 
 import java.io.IOException;
@@ -102,17 +106,17 @@ public final class DemoClient implements ClientModInitializer {
                     if (smoke && ++totalTicks > SMOKE_TIMEOUT_TICKS) {
                         throw new IllegalStateException("demo smoke timed out");
                     }
-                    if (client.screen instanceof AccessibilityOnboardingScreen) {
-                        client.setScreen(new TitleScreen());
+                    if (client.gui.screen() instanceof AccessibilityOnboardingScreen) {
+                        client.gui.setScreen(new TitleScreen());
                     }
                     if (!opened
-                            && client.screen instanceof TitleScreen
-                            && client.getOverlay() == null) {
+                            && client.gui.screen() instanceof TitleScreen
+                            && client.gui.overlay() == null) {
                         // 等待资源加载遮罩消失再打开窗口，确保 owo 组件能够正确挂载和测量。
                         GLFW.glfwSetWindowSize(
-                                client.getWindow().getWindow(), WINDOW_WIDTH, WINDOW_HEIGHT);
+                                client.getWindow().handle(), WINDOW_WIDTH, WINDOW_HEIGHT);
                         client.options.guiScale().set(GUI_SCALE);
-                        client.resizeDisplay();
+                        client.resizeGui();
                         var runtime = InventoryUiClient.runtime();
                         runtime.openWorkspace();
                         inventory = runtime.open("demo:inventory", null);
@@ -126,46 +130,46 @@ public final class DemoClient implements ClientModInitializer {
                     }
                     if (opened && smoke && ticks == ACCEPT_MOVE_TICK) {
                         // 从真实组件的鼠标入口发起移动，确认回调产生新的模拟权威版本。
-                        var screen = client.screen;
+                        var screen = client.gui.screen();
                         var bounds = inventory.bounds();
                         double x = bounds.x() + GRID_GRAB_X;
                         double y = bounds.y() + GRID_GRAB_Y;
-                        screen.mouseClicked(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
-                        screen.mouseDragged(
+                        screen.mouseClicked(mouse(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT), false);
+                        screen.mouseDragged(mouse(
                                 x + ACCEPT_MOVE_DISTANCE,
                                 y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT,
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT),
                                 ACCEPT_MOVE_DISTANCE,
                                 0);
-                        screen.mouseReleased(
-                                x + ACCEPT_MOVE_DISTANCE, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+                        screen.mouseReleased(mouse(
+                                x + ACCEPT_MOVE_DISTANCE, y, GLFW.GLFW_MOUSE_BUTTON_LEFT));
                         require(
                                 demo().revision() == 1,
                                 "drag must submit an accepted move through the component");
                     }
                     if (opened && smoke && ticks == REJECT_MOVE_TICK) {
                         // 同一拖动路径被模拟端拒绝后，库存版本和原位置应保持不变。
-                        var screen = client.screen;
+                        var screen = client.gui.screen();
                         var bounds = inventory.bounds();
-                        screen.mouseClicked(
+                        screen.mouseClicked(mouse(
                                 bounds.x() + REJECT_BUTTON_X,
                                 bounds.y() + REJECT_BUTTON_Y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT);
-                        screen.mouseReleased(
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT), false);
+                        screen.mouseReleased(mouse(
                                 bounds.x() + REJECT_BUTTON_X,
                                 bounds.y() + REJECT_BUTTON_Y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT);
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT));
                         double x = bounds.x() + MOVED_ITEM_GRAB_X;
                         double y = bounds.y() + GRID_GRAB_Y;
-                        screen.mouseClicked(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
-                        screen.mouseDragged(
+                        screen.mouseClicked(mouse(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT), false);
+                        screen.mouseDragged(mouse(
                                 x + REJECT_MOVE_DISTANCE,
                                 y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT,
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT),
                                 REJECT_MOVE_DISTANCE,
                                 0);
-                        screen.mouseReleased(
-                                x + REJECT_MOVE_DISTANCE, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+                        screen.mouseReleased(mouse(
+                                x + REJECT_MOVE_DISTANCE, y, GLFW.GLFW_MOUSE_BUTTON_LEFT));
                         require(
                                 demo().revision() == 1,
                                 "rejected move must preserve the authoritative snapshot");
@@ -185,7 +189,8 @@ public final class DemoClient implements ClientModInitializer {
                         Screenshot.grab(
                                 client.gameDirectory,
                                 "theme-light.png",
-                                client.getMainRenderTarget(),
+                                client.gameRenderer.mainRenderTarget(),
+                                1,
                                 message -> {});
                     }
                     if (opened && smoke && ticks == RESTORE_THEME_TICK) {
@@ -194,33 +199,34 @@ public final class DemoClient implements ClientModInitializer {
                     }
                     if (opened && smoke && ticks == OPEN_HUD_TICK) {
                         // 打开 HUD 管理入口，使真实绘制器在没有游戏世界时也参与验收。
-                        client.screen.mouseClicked(
-                                HUD_MENU_X, HUD_MENU_Y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
-                        client.screen.mouseReleased(
-                                HUD_MENU_X, HUD_MENU_Y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+                        client.gui.screen().mouseClicked(mouse(
+                                HUD_MENU_X, HUD_MENU_Y, GLFW.GLFW_MOUSE_BUTTON_LEFT), false);
+                        client.gui.screen().mouseReleased(mouse(
+                                HUD_MENU_X, HUD_MENU_Y, GLFW.GLFW_MOUSE_BUTTON_LEFT));
                     }
                     if (opened && smoke && ticks == CAPTURE_HUD_TICK) {
                         Screenshot.grab(
                                 client.gameDirectory,
                                 "hud-preview.png",
-                                client.getMainRenderTarget(),
+                                client.gameRenderer.mainRenderTarget(),
+                                1,
                                 message -> {});
                     }
                     if (opened && smoke && ticks == CANCEL_DRAG_TICK) {
                         // 在拖动中关闭工作台，再重开并释放鼠标，旧交互不得补发移动请求。
-                        client.screen.keyPressed(GLFW.GLFW_KEY_ESCAPE, 0, 0);
+                        client.gui.screen().keyPressed(new KeyEvent(GLFW.GLFW_KEY_ESCAPE, 0, 0));
                         InventoryUiClient.runtime().open("demo:inventory", null);
                         var bounds = inventory.bounds();
-                        client.screen.mouseClicked(
+                        client.gui.screen().mouseClicked(mouse(
                                 bounds.x() + MOVED_ITEM_GRAB_X,
                                 bounds.y() + GRID_GRAB_Y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT);
-                        client.screen.onClose();
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT), false);
+                        client.gui.screen().onClose();
                         InventoryUiClient.runtime().openWorkspace();
-                        client.screen.mouseReleased(
+                        client.gui.screen().mouseReleased(mouse(
                                 bounds.x() + MOVED_ITEM_GRAB_X + REJECT_MOVE_DISTANCE,
                                 bounds.y() + GRID_GRAB_Y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT);
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT));
                         require(
                                 demo().revision() == 1,
                                 "closing a workspace must cancel an in-progress drag");
@@ -229,7 +235,8 @@ public final class DemoClient implements ClientModInitializer {
                         Screenshot.grab(
                                 client.gameDirectory,
                                 "workspace.png",
-                                client.getMainRenderTarget(),
+                                client.gameRenderer.mainRenderTarget(),
+                                1,
                                 message -> {});
                     }
                     if (opened && smoke && ticks == OPEN_CASE_TICK) {
@@ -245,15 +252,15 @@ public final class DemoClient implements ClientModInitializer {
                     }
                     if (opened && smoke && ticks == TRANSFER_TICK) {
                         // 跨窗口释放必须到达鼠标下的容器，而不是回到来源窗口组件树。
-                        var screen = client.screen;
-                        screen.mouseClicked(
+                        var screen = client.gui.screen();
+                        screen.mouseClicked(mouse(
                                 inventory.bounds().x() + MOVED_ITEM_GRAB_X,
                                 inventory.bounds().y() + GRID_GRAB_Y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT);
-                        screen.mouseReleased(
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT), false);
+                        screen.mouseReleased(mouse(
                                 storage.bounds().x() + GRID_GRAB_X,
                                 storage.bounds().y() + GRID_GRAB_Y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT);
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT));
                         require(
                                 demo().snapshot().placements().stream()
                                         .anyMatch(
@@ -265,19 +272,19 @@ public final class DemoClient implements ClientModInitializer {
                     }
                     if (opened && smoke && ticks == SPLIT_TICK) {
                         // 中键拆半堆并跨窗落下，源堆数量与服务器分配的新实例同时更新。
-                        var screen = client.screen;
-                        screen.mouseClicked(
+                        var screen = client.gui.screen();
+                        screen.mouseClicked(mouse(
                                 inventory.bounds().x()
                                         + GRID_GRAB_X
                                         + FRUIT_COLUMN * DemoModule.CELL_SIZE,
                                 inventory.bounds().y()
                                         + GRID_GRAB_Y
                                         + FRUIT_ROW * DemoModule.CELL_SIZE,
-                                GLFW.GLFW_MOUSE_BUTTON_MIDDLE);
-                        screen.mouseReleased(
+                                GLFW.GLFW_MOUSE_BUTTON_MIDDLE), false);
+                        screen.mouseReleased(mouse(
                                 storage.bounds().x() + GRID_GRAB_X,
                                 storage.bounds().y() + GRID_GRAB_Y + DemoModule.CELL_SIZE,
-                                GLFW.GLFW_MOUSE_BUTTON_MIDDLE);
+                                GLFW.GLFW_MOUSE_BUTTON_MIDDLE));
                         require(
                                 demo().snapshot().placements().stream()
                                                 .filter(
@@ -303,15 +310,15 @@ public final class DemoClient implements ClientModInitializer {
                     if (opened && smoke && ticks == BIND_TICK) {
                         // 注册槽位由模块组件承载；移除自动底栏后仍应收到同样的绑定意图。
                         var before = demo().snapshot();
-                        var screen = client.screen;
-                        screen.mouseClicked(
+                        var screen = client.gui.screen();
+                        screen.mouseClicked(mouse(
                                 storage.bounds().x() + GRID_GRAB_X,
                                 storage.bounds().y() + GRID_GRAB_Y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT);
-                        screen.mouseReleased(
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT), false);
+                        screen.mouseReleased(mouse(
                                 components.bounds().x() + GRID_GRAB_X,
                                 components.bounds().y() + GRID_GRAB_Y,
-                                GLFW.GLFW_MOUSE_BUTTON_LEFT);
+                                GLFW.GLFW_MOUSE_BUTTON_LEFT));
                         require(
                                 demo().hasBinding(),
                                 "registered slot component must receive drag payload");
@@ -323,7 +330,8 @@ public final class DemoClient implements ClientModInitializer {
                         Screenshot.grab(
                                 client.gameDirectory,
                                 "framework.png",
-                                client.getMainRenderTarget(),
+                                client.gameRenderer.mainRenderTarget(),
+                                1,
                                 message -> {});
                     }
                     if (opened && smoke && ticks == OPEN_COMPONENTS_TICK) {
@@ -340,7 +348,8 @@ public final class DemoClient implements ClientModInitializer {
                         Screenshot.grab(
                                 client.gameDirectory,
                                 "components.png",
-                                client.getMainRenderTarget(),
+                                client.gameRenderer.mainRenderTarget(),
+                                1,
                                 message -> {});
                     }
                     if (opened && smoke && ticks == OPEN_SIZE_TICK) {
@@ -348,28 +357,28 @@ public final class DemoClient implements ClientModInitializer {
                         var runtime = InventoryUiClient.runtime();
                         runtime.open("demo:inventory", null);
                         click(
-                                client.screen,
+                                client.gui.screen(),
                                 inventory.bounds().x()
                                         + inventory.bounds().width()
                                         - SIZE_ACTION_OFFSET,
                                 inventory.bounds().y() + HEADER_CLICK_Y);
                     }
                     if (opened && smoke && ticks == APPLY_SIZE_TICK) {
-                        var screen = client.screen;
+                        var screen = client.gui.screen();
                         for (int i = 0; i < 10; i++) {
-                            screen.keyPressed(GLFW.GLFW_KEY_BACKSPACE, 0, 0);
+                            screen.keyPressed(new KeyEvent(GLFW.GLFW_KEY_BACKSPACE, 0, 0));
                         }
                         for (char digit : "320".toCharArray()) {
-                            screen.charTyped(digit, 0);
+                            screen.charTyped(new CharacterEvent(digit));
                         }
-                        screen.keyPressed(GLFW.GLFW_KEY_ENTER, 0, 0);
+                        screen.keyPressed(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
                         require(
                                 inventory.desiredBounds().width() == 320,
                                 "size editor must apply typed width");
                     }
                     if (opened && smoke && ticks == PIN_WINDOW_TICK) {
                         click(
-                                client.screen,
+                                client.gui.screen(),
                                 inventory.bounds().x()
                                         + inventory.bounds().width()
                                         - PIN_ACTION_OFFSET,
@@ -380,7 +389,7 @@ public final class DemoClient implements ClientModInitializer {
                     }
                     if (opened && smoke && ticks == MINIMIZE_WINDOW_TICK) {
                         click(
-                                client.screen,
+                                client.gui.screen(),
                                 inventory.bounds().x()
                                         + inventory.bounds().width()
                                         - MINIMIZE_ACTION_OFFSET,
@@ -393,13 +402,14 @@ public final class DemoClient implements ClientModInitializer {
                         Screenshot.grab(
                                 client.gameDirectory,
                                 "minimized-windows.png",
-                                client.getMainRenderTarget(),
+                                client.gameRenderer.mainRenderTarget(),
+                                1,
                                 message -> {});
                     }
                     if (opened && smoke && ticks == RESTORE_WINDOW_TICK) {
                         // 直接点击底部恢复按钮，验证布局与命中区，而不是绕过界面调用 open。
                         click(
-                                client.screen,
+                                client.gui.screen(),
                                 MINIMIZED_RESTORE_X,
                                 client.getWindow().getGuiScaledHeight() - MINIMIZED_Y_FROM_BOTTOM);
                         require(
@@ -420,7 +430,7 @@ public final class DemoClient implements ClientModInitializer {
                     if (opened && smoke && ticks == CLOSE_MINIMIZED_TICK) {
                         // 最小化卡片的关闭按钮必须真正释放窗口及订阅，不能只移除卡片。
                         click(
-                                client.screen,
+                                client.gui.screen(),
                                 MINIMIZED_CLOSE_X,
                                 client.getWindow().getGuiScaledHeight() - MINIMIZED_Y_FROM_BOTTOM);
                         require(
@@ -434,19 +444,21 @@ public final class DemoClient implements ClientModInitializer {
                         Screenshot.grab(
                                 client.gameDirectory,
                                 "window-chrome.png",
-                                client.getMainRenderTarget(),
+                                client.gameRenderer.mainRenderTarget(),
+                                1,
                                 message -> {});
                     }
                     if (opened && smoke && ticks == OPEN_BACKGROUNDS_TICK) {
                         // 外观列表第六项是缩略图入口，打开后由真实资源绘制卡片。
-                        click(client.screen, 140, 12);
-                        click(client.screen, 70, 162);
+                        click(client.gui.screen(), 140, 12);
+                        click(client.gui.screen(), 70, 162);
                     }
                     if (opened && smoke && ticks == CAPTURE_BACKGROUNDS_TICK) {
                         Screenshot.grab(
                                 client.gameDirectory,
                                 "background-gallery.png",
-                                client.getMainRenderTarget(),
+                                client.gameRenderer.mainRenderTarget(),
+                                1,
                                 message -> {});
                     }
                     if (opened && smoke && ticks == FINISH_SMOKE_TICK) {
@@ -490,7 +502,7 @@ public final class DemoClient implements ClientModInitializer {
             try (var source =
                     client.getResourceManager()
                             .open(
-                                    new net.minecraft.resources.ResourceLocation(
+                                    net.minecraft.resources.Identifier.fromNamespaceAndPath(
                                             "kizuna_inventory_ui",
                                             "textures/gui/workspace/cosmos.png"))) {
                 Files.copy(
@@ -517,8 +529,13 @@ public final class DemoClient implements ClientModInitializer {
 
     private static void click(net.minecraft.client.gui.screens.Screen screen, double x, double y) {
         // 完整点击包含释放，避免下个验收步骤继承鼠标按下捕获。
-        screen.mouseClicked(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
-        screen.mouseReleased(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        screen.mouseClicked(mouse(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT), false);
+        screen.mouseReleased(mouse(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT));
+    }
+
+    private static MouseButtonEvent mouse(double x, double y, int button) {
+        // 合成输入不带修饰键，坐标为 GUI 逻辑像素。
+        return new MouseButtonEvent(x, y, new MouseButtonInfo(button, 0));
     }
 
     private static DemoModule demo() {

@@ -1,60 +1,43 @@
 package dev.kizuna.inventoryui.client;
 
 import dev.kizuna.inventoryui.protocol.UiWire;
+import dev.kizuna.inventoryui.server.fabric.UiPayload;
 
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.resources.ResourceLocation;
 
 /** 单一可选 CustomPayload 通道；消息体为 Protobuf Envelope，不附加长度前缀。 */
 final class FabricUiTransport {
-    static final ResourceLocation CHANNEL = new ResourceLocation("kizuna_inventory_ui", "message");
-
     private FabricUiTransport() {}
 
     static void install(ClientRuntime runtime) {
         runtime.transport(
                 packet -> {
                     // 仅向声明支持此通道的服务器发包；普通服务器仍能使用纯本地模块。
-                    if (!ClientPlayNetworking.canSend(CHANNEL)) {
-                        throw new IllegalStateException("server does not advertise " + CHANNEL);
+                    if (!ClientPlayNetworking.canSend(UiPayload.TYPE)) {
+                        throw new IllegalStateException("server does not advertise " + UiPayload.TYPE.id());
                     }
-                    var buffer = PacketByteBufs.create();
-                    buffer.writeBytes(UiWire.encode(packet));
-                    ClientPlayNetworking.send(CHANNEL, buffer);
+                    ClientPlayNetworking.send(new UiPayload(UiWire.encode(packet)));
                 });
         ClientPlayNetworking.registerGlobalReceiver(
-                CHANNEL,
-                (client, handler, buffer, sender) -> {
-                    // 网络线程只复制有上限的数据；解析和子模块回调在客户端线程执行。
-                    if (buffer.readableBytes() > UiWire.MAX_PACKET_BYTES) {
+                UiPayload.TYPE,
+                (payload, context) -> {
+                    // Fabric 在客户端线程回调；超限包只记日志丢弃，解析失败不影响连接。
+                    if (payload.bytes().length > UiWire.MAX_PACKET_BYTES) {
                         System.getLogger(FabricUiTransport.class.getName())
                                 .log(System.Logger.Level.WARNING, "UI packet exceeds size limit");
                         return;
                     }
-                    byte[] bytes = new byte[buffer.readableBytes()];
-                    buffer.readBytes(bytes);
-                    client.execute(
-                            () -> {
-                                if (client.getConnection() != handler) {
-                                    return;
-                                }
-                                try {
-                                    runtime.receive(
-                                            runtime.protocol().generation(), UiWire.decode(bytes));
-                                } catch (RuntimeException failure) {
-                                    System.getLogger(FabricUiTransport.class.getName())
-                                            .log(
-                                                    System.Logger.Level.WARNING,
-                                                    "Invalid UI packet",
-                                                    failure);
-                                }
-                            });
+                    try {
+                        runtime.receive(runtime.protocol().generation(), UiWire.decode(payload.bytes()));
+                    } catch (RuntimeException failure) {
+                        System.getLogger(FabricUiTransport.class.getName())
+                                .log(System.Logger.Level.WARNING, "Invalid UI packet", failure);
+                    }
                 });
         ClientPlayConnectionEvents.JOIN.register(
                 (handler, sender, client) -> {
-                    if (ClientPlayNetworking.canSend(CHANNEL)) {
+                    if (ClientPlayNetworking.canSend(UiPayload.TYPE)) {
                         runtime.protocol().connect(System.currentTimeMillis());
                     }
                 });

@@ -6,10 +6,11 @@ import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.window.UiWindowDefinition;
 import dev.kizuna.inventoryui.wiresmoke.pb.SmokeProtocol;
 
-import io.wispforest.owo.ui.component.Components;
+import io.wispforest.owo.ui.component.UIComponents;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.AccessibilityOnboardingScreen;
 import net.minecraft.client.gui.screens.ConnectScreen;
@@ -17,6 +18,7 @@ import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -79,7 +81,7 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                         true));
         bindings.window(
                 "wire:window",
-                (runtime, window) -> Components.label(Component.literal("服务器状态：" + state)));
+                (runtime, window) -> UIComponents.label(Component.literal("服务器状态：" + state)));
     }
 
     @Override
@@ -104,6 +106,14 @@ public final class WireClient implements ClientModInitializer, ClientModule {
 
     @Override
     public void onInitializeClient() {
+        // HUD 探针的第二阶段挂在 HUD 最后：探针关闭后原版 HUD 应先于本元素提交内容。
+        HudElementRegistry.addLast(
+                Identifier.fromNamespaceAndPath("kiui_wire_smoke", "hud_probe"),
+                (context, deltaTracker) -> {
+                    if (hudProbe != null) {
+                        hudProbe.observeHud(context);
+                    }
+                });
         ClientTickEvents.END_CLIENT_TICK.register(
                 client -> {
                     // 资源加载完成后连接隔离的本机端口，整个验收有明确超时。
@@ -118,41 +128,47 @@ public final class WireClient implements ClientModInitializer, ClientModule {
                                 "wire smoke timed out: "
                                         + InventoryUiClient.runtime().protocolError());
                     }
-                    if (client.screen instanceof AccessibilityOnboardingScreen) {
-                        client.setScreen(new TitleScreen());
+                    if (client.gui.screen() instanceof AccessibilityOnboardingScreen) {
+                        client.gui.setScreen(new TitleScreen());
                     }
                     if (!connecting
-                            && client.screen instanceof TitleScreen
-                            && client.getOverlay() == null) {
+                            && client.gui.screen() instanceof TitleScreen
+                            && client.gui.overlay() == null) {
                         connecting = true;
                         ConnectScreen.startConnecting(
                                 new TitleScreen(),
                                 client,
                                 ServerAddress.parseString(ADDRESS),
-                                new ServerData("Local wire fixture", ADDRESS, false),
-                                false);
+                                new ServerData("Local wire fixture", ADDRESS, ServerData.Type.OTHER),
+                                false,
+                                null);
                     }
                     if (client.player != null && state == 7 && accepted && rejected) {
                         var runtime = InventoryUiClient.runtime();
                         if (readyTicks++ == 0) {
-                            // 工作台打开窗口后固定，再关闭主屏，实际 HudRenderCallback 必须继续绘制同一实例。
+                            // 工作台打开窗口后固定，再关闭主屏，实际 HUD 元素回调必须继续绘制同一实例。
                             runtime.openWorkspace();
                             var window = runtime.open("wire:feature", null);
                             if (!runtime.pinWindow(window.key(), true)) {
                                 throw new IllegalStateException("fixture window cannot pin");
                             }
-                            client.setScreen(null);
+                            client.gui.setScreen(null);
                         }
                         if (readyTicks == CAPTURE_DELAY_TICKS) {
                             Screenshot.grab(
                                     client.gameDirectory,
                                     "pinned-hud.png",
-                                    client.getMainRenderTarget(),
+                                    client.gameRenderer.mainRenderTarget(),
+                                    1,
                                     message -> {});
                             // 取消固定窗口后，像素对照只检查原版 HUD，不混入测试模块自身的 HUD。
                             runtime.workspace().disconnect();
                             hudProbe = new HudVisibilityProbe();
-                            client.setScreen(hudProbe);
+                            client.gui.setScreen(hudProbe);
+                        }
+                        if (hudProbe != null && hudProbe == client.gui.screen() && hudProbe.hiddenVerified()) {
+                            // 屏幕下的隐藏检查完成后关闭探针，由 HUD 末尾元素确认原版 HUD 恢复绘制。
+                            client.gui.setScreen(null);
                         }
                         if (hudProbe != null && hudProbe.verified()) {
                             try {

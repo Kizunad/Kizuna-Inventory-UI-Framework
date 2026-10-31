@@ -9,9 +9,9 @@ import dev.kizuna.inventoryui.inventory.InventoryGrid;
 import dev.kizuna.inventoryui.inventory.InventorySnapshot;
 import dev.kizuna.inventoryui.theme.BuiltinThemes;
 
-import io.wispforest.owo.ui.base.BaseComponent;
-import io.wispforest.owo.ui.core.Component;
-import io.wispforest.owo.ui.core.OwoUIDrawContext;
+import io.wispforest.owo.ui.base.BaseUIComponent;
+import io.wispforest.owo.ui.core.UIComponent;
+import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
 import org.lwjgl.glfw.GLFW;
 
@@ -20,10 +20,11 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 
 /** 占格网格；共享 drag 时支持跨窗口拖放，所有操作仅产生意图。 */
-public final class InventoryGridComponent extends BaseComponent implements ItemDropTarget {
+public final class InventoryGridComponent extends BaseUIComponent implements ItemDropTarget {
     private static final int MIN_CELL_SIZE = 12;
     private static final int CELL_GAP = 1;
     private static final int ITEM_INSET = 2;
@@ -152,7 +153,7 @@ public final class InventoryGridComponent extends BaseComponent implements ItemD
 
     @Override
     public void draw(
-            OwoUIDrawContext context, int mouseX, int mouseY, float partialTicks, float delta) {
+            OwoUIGraphics context, int mouseX, int mouseY, float partialTicks, float delta) {
         // 一帧固定一份快照；拖动期间仍显示权威原位置，拒绝或取消无需回滚库存。
         var snapshot = source.snapshot();
         var container = container(snapshot);
@@ -274,8 +275,12 @@ public final class InventoryGridComponent extends BaseComponent implements ItemD
     }
 
     @Override
-    public boolean onMouseDown(double mouseX, double mouseY, int button) {
+    public boolean onMouseDown(MouseButtonEvent event, boolean doubleClick) {
         // 右键菜单和快速操作先于抓取；中键选择半堆，拖动中滚轮可精确调整数量。
+        // 双击详情仍按本组件自己的物品身份与时间窗识别，不采用原版的双击标记。
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
         int column = (int) Math.floor(mouseX / cellSize);
         int row = (int) Math.floor(mouseY / cellSize);
         var placement = itemAt(source.snapshot(), column, row);
@@ -297,7 +302,7 @@ public final class InventoryGridComponent extends BaseComponent implements ItemD
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
             return false;
         }
-        if (Screen.hasShiftDown() && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (event.hasShiftDown() && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             presentation.quickMove(placement.item());
             return true;
         }
@@ -348,15 +353,18 @@ public final class InventoryGridComponent extends BaseComponent implements ItemD
     }
 
     @Override
-    public boolean onMouseDrag(double mouseX, double mouseY, double dx, double dy, int button) {
+    public boolean onMouseDrag(MouseButtonEvent event, double dx, double dy) {
         // 一旦发生拖动，这次按下不再参与双击详情识别。
         lastClick = null;
         return drag.current() != null;
     }
 
     @Override
-    public boolean onMouseUp(double mouseX, double mouseY, int button) {
+    public boolean onMouseUp(MouseButtonEvent event) {
         // 独立使用时仍支持本地释放；工作台共享会话会先在真正的目标组件上消费。
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
             return false;
         }
@@ -372,8 +380,9 @@ public final class InventoryGridComponent extends BaseComponent implements ItemD
     }
 
     @Override
-    public boolean onKeyPress(int keyCode, int scanCode, int modifiers) {
+    public boolean onKeyPress(KeyEvent event) {
         // 无工作台宿主时也能旋转和取消；公共快捷键不触发子模块操作。
+        int keyCode = event.key();
         if (drag.current() == null) {
             return false;
         }
@@ -389,7 +398,7 @@ public final class InventoryGridComponent extends BaseComponent implements ItemD
     }
 
     @Override
-    public boolean canFocus(Component.FocusSource source) {
+    public boolean canFocus(UIComponent.FocusSource source) {
         return true;
     }
 

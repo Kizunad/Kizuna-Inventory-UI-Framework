@@ -3,7 +3,7 @@ package dev.kizuna.inventoryui.client;
 import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 
@@ -37,7 +37,7 @@ final class BackgroundButton extends Button {
     }
 
     @Override
-    public void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    protected void extractContents(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // 缺失缩略图保留主题底色，选择结果仅在资源成功载入后更新。
         context.fill(
                 getX(), getY(), getX() + getWidth(), getY() + getHeight(), runtime.color(CONTROL));
@@ -60,14 +60,14 @@ final class BackgroundButton extends Button {
                 getY() + getHeight(),
                 runtime.color(HUD_BACKGROUND));
         var text = Minecraft.getInstance().font;
-        context.drawString(
+        context.text(
                 text,
                 text.plainSubstrByWidth(getMessage().getString(), getWidth() - 2 * LABEL_X),
                 getX() + LABEL_X,
                 getY() + LABEL_Y,
                 runtime.color(HUD_TEXT),
                 false);
-        context.renderOutline(
+        context.outline(
                 getX(),
                 getY(),
                 getWidth(),

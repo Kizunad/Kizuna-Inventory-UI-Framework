@@ -11,6 +11,8 @@ repositories {
     maven { url = 'https://maven.fabricmc.net/' }
     maven { url = 'https://maven.wispforest.io/releases' }
     mavenCentral()
+    // owo 0.13 依赖的 kdl4j 只发布在 JitPack。
+    maven { url = 'https://jitpack.io' }
 }
 
 java {
@@ -25,12 +27,12 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 dependencies {
+    // 26.x 不混淆：直接用官方名编译，没有映射，模组依赖也不经重映射。
     minecraft libs.minecraft
-    mappings loom.officialMojangMappings()
-    modImplementation libs.fabric.loader
-    modImplementation libs.fabric.api
-    modImplementation libs.owo
-    modImplementation project(':server')
+    implementation libs.fabric.loader
+    implementation libs.fabric.api
+    implementation libs.owo
+    implementation project(':server')
     api libs.protobuf.java
     include libs.protobuf.java
     testImplementation libs.junit.jupiter
@@ -107,19 +109,13 @@ processResources {
 
 jar { from('LICENSE') }
 
+// 不再重映射，演示产物直接打包官方名类文件；与旧版一样不嵌套依赖。
 tasks.register('demoJar', Jar) {
-    archiveClassifier = 'demo-dev'
+    archiveClassifier = 'demo'
     from sourceSets.demo.output
 }
 
-tasks.register('remapDemoJar', net.fabricmc.loom.task.RemapJarTask) {
-    dependsOn tasks.named('demoJar')
-    inputFile = tasks.named('demoJar').flatMap { it.archiveFile }
-    archiveClassifier = 'demo'
-    addNestedDependencies = false
-}
-
-build.dependsOn tasks.named('remapDemoJar')
+build.dependsOn tasks.named('demoJar')
 
 // 服务端可直接取用协议源文件，无需依赖 Minecraft 客户端框架 JAR。
 tasks.register('protocolZip', Zip) {

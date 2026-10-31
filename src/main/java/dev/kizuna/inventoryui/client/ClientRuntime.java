@@ -27,7 +27,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /** Fabric 客户端的组合根；状态、内容和业务动作由子模组提供。所有调用限定客户端线程。 */
 public final class ClientRuntime {
@@ -337,7 +337,7 @@ public final class ClientRuntime {
         return localBackgrounds;
     }
 
-    void renderBackground(GuiGraphics context, int width, int height) {
+    void renderBackground(GuiGraphicsExtractor context, int width, int height) {
         // 本地图片与模块资源共用选择入口，文件名不进入模块注册表。
         if (background != null && background.startsWith("local:") && localBackgrounds != null) {
             localBackgrounds.render(context, width, height);
@@ -413,7 +413,7 @@ public final class ClientRuntime {
     }
 
     public void openWorkspace() {
-        Minecraft.getInstance().setScreen(new WorkspaceScreen(this));
+        Minecraft.getInstance().gui.setScreen(new WorkspaceScreen(this));
     }
 
     public void resetWindowLayout() {
@@ -464,7 +464,7 @@ public final class ClientRuntime {
     }
 
     void renderWindow(
-            GuiGraphics context,
+            GuiGraphicsExtractor context,
             UiWindowManager.WindowState state,
             UiWindowManager.Rect bounds,
             boolean controls,
@@ -472,9 +472,8 @@ public final class ClientRuntime {
             int mouseY,
             float delta) {
         // 外框和内容共用窗口生命周期；HUD 路径隐藏按钮，并禁用悬停输入。
-        context.flush();
-        com.mojang.blaze3d.systems.RenderSystem.clear(
-                org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
+        // 每个窗口独占一个绘制层，后绘制的窗口整体压在先前窗口及其 tooltip 之上。
+        context.nextStratum();
         WindowChrome.render(context, this, state, bounds, controls, mouseX, mouseY);
         var view = views.get(state.key());
         if (view != null && bounds.height() > WINDOW_HEADER_HEIGHT + WINDOW_BORDER) {
@@ -482,7 +481,7 @@ public final class ClientRuntime {
         }
         if (controls) {
             // 角标与拖动命中使用同一尺寸，内容铺满时仍明确展示缩放入口。
-            context.drawString(
+            context.text(
                     Minecraft.getInstance().font,
                     "◢",
                     bounds.x() + bounds.width() - RESIZE_GRIP_SIZE,
@@ -490,12 +489,11 @@ public final class ClientRuntime {
                     color(ThemeTokens.ACCENT),
                     false);
         }
-        context.flush();
     }
 
-    public void renderHuds(GuiGraphics context, int width, int height, float delta) {
+    public void renderHuds(GuiGraphicsExtractor context, int width, int height, float delta) {
         // 工作台已经绘制窗口；普通游戏 HUD 才渲染固定实例，不创建第二棵组件树。
-        if (!(Minecraft.getInstance().screen instanceof WorkspaceScreen)) {
+        if (!(Minecraft.getInstance().gui.screen() instanceof WorkspaceScreen)) {
             for (var state : workspace.windowBar()) {
                 if (state.hudVisible()) {
                     var source = state.bounds();
@@ -511,10 +509,8 @@ public final class ClientRuntime {
                 }
             }
         }
-        // 固定窗口的 owo 子树可能留下深度，独立 HUD 层必须从清空后的深度开始。
-        context.flush();
-        com.mojang.blaze3d.systems.RenderSystem.clear(
-                org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);
+        // 固定窗口之后另起一层，独立 HUD 整体压在窗口之上。
+        context.nextStratum();
         // 每个 HUD 使用独立变换和裁剪，模块只需要在自己的逻辑坐标内绘制。
         for (var hud : catalog.huds().values()) {
             if (!hudLayout.placement(hud.id()).visible()) {
@@ -527,21 +523,21 @@ public final class ClientRuntime {
                     bounds.y(),
                     bounds.x() + bounds.width(),
                     bounds.y() + bounds.height());
-            matrices.pushPose();
+            matrices.pushMatrix();
             try {
-                matrices.translate(bounds.x(), bounds.y(), 0);
+                matrices.translate(bounds.x(), bounds.y());
                 float scale = hudLayout.placement(hud.id()).scale();
-                matrices.scale(scale, scale, 1);
+                matrices.scale(scale, scale);
                 renderers.get(hud.id()).render(context, hud.width(), hud.height(), delta);
             } finally {
                 // 模块绘制失败也必须还原上下文，避免影响后续 HUD 和游戏界面。
-                matrices.popPose();
+                matrices.popMatrix();
                 context.disableScissor();
             }
         }
     }
 
-    public void renderSlotBar(GuiGraphics context, String barId, int width, int height) {
+    public void renderSlotBar(GuiGraphicsExtractor context, String barId, int width, int height) {
         // 用注册数量分配格宽；HUD 和工作台读取同一供应器，绑定变化会同时显示。
         var bar = catalog.slotBars().get(barId);
         if (bar == null) {
@@ -569,7 +565,7 @@ public final class ClientRuntime {
                         height,
                         this::color);
             } else {
-                context.drawString(
+                context.text(
                         text,
                         text.plainSubstrByWidth(
                                 content.label(), Math.max(1, cellWidth - 2 * WINDOW_BORDER)),

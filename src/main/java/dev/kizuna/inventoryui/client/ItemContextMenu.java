@@ -9,7 +9,7 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.ToIntFunction;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 
 /** 最上层公共操作菜单；动作列表和可用性由模块提供，库存更新使旧菜单失效。 */
@@ -44,7 +44,7 @@ public final class ItemContextMenu {
     }
 
     public void render(
-            GuiGraphics context,
+            GuiGraphicsExtractor context,
             int width,
             int height,
             int mouseX,
@@ -71,7 +71,7 @@ public final class ItemContextMenu {
                 context.fill(
                         x, top, x + w, top + ROW_HEIGHT, colors.applyAsInt(ThemeTokens.HEADER));
             }
-            context.drawString(
+            context.text(
                     text,
                     text.plainSubstrByWidth(action.label(), w - 2 * PADDING),
                     x + PADDING,
@@ -79,7 +79,7 @@ public final class ItemContextMenu {
                     colors.applyAsInt(
                             action.enabled() ? ThemeTokens.TEXT : ThemeTokens.MUTED_TEXT));
             if (hover && !action.enabled() && !action.disabledReason().isBlank()) {
-                context.renderTooltip(text, Component.literal(action.disabledReason()), mouseX, mouseY);
+                context.setTooltipForNextFrame(text, Component.literal(action.disabledReason()), mouseX, mouseY);
             }
         }
     }

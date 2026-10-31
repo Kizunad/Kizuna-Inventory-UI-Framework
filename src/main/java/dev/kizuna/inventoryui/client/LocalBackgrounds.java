@@ -9,13 +9,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /** 本地背景纹理有界缓存；刷新、替换和关闭时释放显存。仅客户端线程调用。 */
 final class LocalBackgrounds implements AutoCloseable {
     private static final int THUMBNAIL_SIZE = 256;
+    // 动态纹理 ID 的递增序号；纹理管理器不再代为生成唯一 ID。仅客户端线程访问。
+    private static int nextTextureId;
     private final LocalBackgroundLibrary library;
     private final Map<String, Texture> thumbnails = new LinkedHashMap<>();
     private List<String> entries = List.of();
@@ -64,11 +67,11 @@ final class LocalBackgrounds implements AutoCloseable {
         }
     }
 
-    void render(GuiGraphics context, int width, int height) {
+    void render(GuiGraphicsExtractor context, int width, int height) {
         draw(context, selected, 0, 0, width, height);
     }
 
-    void thumbnail(GuiGraphics context, String id, int x, int y, int width, int height) {
+    void thumbnail(GuiGraphicsExtractor context, String id, int x, int y, int width, int height) {
         // 只加载可见条目；空值也缓存，避免损坏图片每帧重复解析。
         if (!thumbnails.containsKey(id) && entries.contains(id)) {
             try {
@@ -99,15 +102,8 @@ final class LocalBackgrounds implements AutoCloseable {
                             source.getRGB(
                                     Math.min(source.getWidth() - 1, (int) (x / scale)),
                                     Math.min(source.getHeight() - 1, (int) (y / scale)));
-                    // ImageIO 为 ARGB，NativeImage 为 ABGR；用颜色工具转换，避免位掩码散落。
-                    image.setPixelRGBA(
-                            x,
-                            y,
-                            net.minecraft.util.FastColor.ABGR32.color(
-                                    net.minecraft.util.FastColor.ARGB32.alpha(argb),
-                                    net.minecraft.util.FastColor.ARGB32.blue(argb),
-                                    net.minecraft.util.FastColor.ARGB32.green(argb),
-                                    net.minecraft.util.FastColor.ARGB32.red(argb)));
+                    // ImageIO 与 NativeImage.setPixel 都是 ARGB，直接写入。
+                    image.setPixel(x, y, argb);
                 }
             }
         } catch (RuntimeException | Error failure) {
@@ -115,12 +111,12 @@ final class LocalBackgrounds implements AutoCloseable {
             throw failure;
         }
         // 从此处起像素所有权交给纹理对象，失败路径只由纹理关闭一次。
-        var texture = new DynamicTexture(image);
+        var texture = new DynamicTexture(() -> "kiui-background", image);
         try {
             var id =
-                    Minecraft.getInstance()
-                            .getTextureManager()
-                            .register("kiui-background", texture);
+                    Identifier.fromNamespaceAndPath(
+                            "kizuna_inventory_ui", "dynamic/background_" + nextTextureId++);
+            Minecraft.getInstance().getTextureManager().register(id, texture);
             return new Texture(id, width, height);
         } catch (RuntimeException | Error failure) {
             texture.close();
@@ -129,7 +125,7 @@ final class LocalBackgrounds implements AutoCloseable {
     }
 
     private static void draw(
-            GuiGraphics context, Texture texture, int x, int y, int width, int height) {
+            GuiGraphicsExtractor context, Texture texture, int x, int y, int width, int height) {
         // COVER 直接裁切源区域，不依赖外层 scissor，缩略图也可嵌入滚动列表。
         if (texture == null) {
             return;
@@ -139,13 +135,14 @@ final class LocalBackgrounds implements AutoCloseable {
         int sw = Math.max(1, (int) Math.round(width / scale));
         int sh = Math.max(1, (int) Math.round(height / scale));
         context.blit(
+                RenderPipelines.GUI_TEXTURED,
                 texture.id(),
                 x,
                 y,
-                width,
-                height,
                 (texture.width() - sw) / 2f,
                 (texture.height() - sh) / 2f,
+                width,
+                height,
                 sw,
                 sh,
                 texture.width(),
@@ -167,5 +164,5 @@ final class LocalBackgrounds implements AutoCloseable {
         selected = null;
     }
 
-    private record Texture(ResourceLocation id, int width, int height) {}
+    private record Texture(Identifier id, int width, int height) {}
 }

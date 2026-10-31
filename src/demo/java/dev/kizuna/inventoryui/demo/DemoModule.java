@@ -18,19 +18,20 @@ import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 import dev.kizuna.inventoryui.window.UiWindowDefinition;
 
-import io.wispforest.owo.ui.component.Components;
-import io.wispforest.owo.ui.container.Containers;
+import io.wispforest.owo.ui.component.UIComponents;
+import io.wispforest.owo.ui.container.UIContainers;
 import io.wispforest.owo.ui.core.Sizing;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.block.BlockModelRenderState;
+import net.minecraft.client.renderer.block.BlockModelResolver;
+import net.minecraft.client.renderer.block.model.BlockDisplayContext;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemDisplayContext;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
+import net.minecraft.util.LightCoordsUtil;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
 import java.util.ArrayList;
@@ -167,7 +168,7 @@ public final class DemoModule implements ClientModule {
         bindings.window(
                 "demo:inventory_window",
                 (runtime, window) -> {
-                    var root = Containers.verticalFlow(Sizing.fill(FILL_PERCENT), Sizing.content());
+                    var root = UIContainers.verticalFlow(Sizing.fill(FILL_PERCENT), Sizing.content());
                     root.child(
                             new InventoryGridComponent(
                                             state,
@@ -201,7 +202,7 @@ public final class DemoModule implements ClientModule {
                                             },
                                             runtime.contextMenu()));
                     root.child(
-                            Components.button(
+                            UIComponents.button(
                                     Component.literal("让下一次移动被拒绝"), button -> rejectNext = true));
                     return root;
                 });
@@ -219,7 +220,7 @@ public final class DemoModule implements ClientModule {
                 "demo:components_window",
                 (runtime, window) -> {
                     // 单独演示通用组件组合，模型、槽位内容和状态含义均留在示例子 JAR。
-                    var root = Containers.verticalFlow(Sizing.fill(FILL_PERCENT), Sizing.content());
+                    var root = UIContainers.verticalFlow(Sizing.fill(FILL_PERCENT), Sizing.content());
                     var bar =
                             definition().entries().stream()
                                     .filter(entry -> entry instanceof FrameworkCatalog.SlotBar)
@@ -284,34 +285,30 @@ public final class DemoModule implements ClientModule {
                                             new ModelPreviewComponent.Model() {
                                                 @Override
                                                 public AABB bounds() {
-                                                    // 原版物品模型以中心为原点，边长为一个模型单位。
-                                                    final double halfExtent = 0.5;
-                                                    return new AABB(
-                                                            -halfExtent,
-                                                            -halfExtent,
-                                                            -halfExtent,
-                                                            halfExtent,
-                                                            halfExtent,
-                                                            halfExtent);
+                                                    // 原版方块模型占据 0～1 的方块空间，单位为方块。
+                                                    return new AABB(0, 0, 0, 1, 1, 1);
                                                 }
 
                                                 @Override
                                                 public void render(
                                                         PoseStack matrices,
-                                                        MultiBufferSource buffers,
+                                                        SubmitNodeCollector collector,
                                                         float tickDelta) {
+                                                    // 26.2 的物品数据组件在进入世界后才绑定，无世界的演示建不出物品堆；
+                                                    // 改用不依赖数据组件的原版方块模型，各面贴图不同，便于核对朝向与剔除。
                                                     var client = Minecraft.getInstance();
-                                                    client.getItemRenderer()
-                                                            .renderStatic(
-                                                                    new ItemStack(Items.IRON_SWORD),
-                                                                    ItemDisplayContext.FIXED,
-                                                                    LightTexture
-                                                                            .FULL_BRIGHT,
-                                                                    OverlayTexture.NO_OVERLAY,
-                                                                    matrices,
-                                                                    buffers,
-                                                                    client.level,
-                                                                    0);
+                                                    var block = new BlockModelRenderState();
+                                                    new BlockModelResolver(client.getModelManager())
+                                                            .update(
+                                                                    block,
+                                                                    Blocks.CRAFTING_TABLE.defaultBlockState(),
+                                                                    BlockDisplayContext.create());
+                                                    block.submit(
+                                                            matrices,
+                                                            collector,
+                                                            LightCoordsUtil.FULL_BRIGHT,
+                                                            OverlayTexture.NO_OVERLAY,
+                                                            0);
                                                 }
                                             },
                                     runtime::color));
@@ -320,17 +317,17 @@ public final class DemoModule implements ClientModule {
         bindings.window(
                 "demo:status_window",
                 (runtime, window) -> {
-                    var root = Containers.verticalFlow(Sizing.fill(FILL_PERCENT), Sizing.content());
-                    var label = Components.label(Component.literal(status()));
+                    var root = UIContainers.verticalFlow(Sizing.fill(FILL_PERCENT), Sizing.content());
+                    var label = UIComponents.label(Component.literal(status()));
                     var subscription = state.subscribe(value -> label.text(Component.literal(status())));
                     window.scope().addCleanup(subscription::close);
                     root.child(label);
                     root.child(
-                            Components.button(
+                            UIComponents.button(
                                     Component.literal("打开库存"),
                                     button -> runtime.open("demo:inventory", null)));
                     root.child(
-                            Components.button(
+                            UIComponents.button(
                                     Component.literal("查看最近结果"),
                                     button ->
                                             label.text(
@@ -352,7 +349,7 @@ public final class DemoModule implements ClientModule {
                                     HUD_BADGE_SIZE,
                                     HUD_BADGE_SIZE,
                                     runtime.color(ThemeTokens.ACCENT));
-                    context.drawString(
+                    context.text(
                             Minecraft.getInstance().font,
                             status(),
                             HUD_TEXT_X,

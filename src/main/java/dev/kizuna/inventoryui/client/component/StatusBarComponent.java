@@ -2,8 +2,8 @@ package dev.kizuna.inventoryui.client.component;
 
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 
-import io.wispforest.owo.ui.base.BaseComponent;
-import io.wispforest.owo.ui.core.OwoUIDrawContext;
+import io.wispforest.owo.ui.base.BaseUIComponent;
+import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
 import java.util.List;
 import java.util.Objects;
@@ -13,7 +13,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
 /** 通用数值条；单位、最大值和含义由模块提供，不预置任何角色属性。 */
-public final class StatusBarComponent extends BaseComponent {
+public final class StatusBarComponent extends BaseUIComponent {
     private final Supplier<Value> source;
     private final ToIntFunction<String> colors;
 
@@ -29,7 +29,7 @@ public final class StatusBarComponent extends BaseComponent {
 
     @Override
     public void draw(
-            OwoUIDrawContext context, int mouseX, int mouseY, float partialTicks, float delta) {
+            OwoUIGraphics context, int mouseX, int mouseY, float partialTicks, float delta) {
         // 越界值只在显示时裁切；供应方的权威数据不被 UI 改写。
         var value = source.get();
         double fraction = Math.max(0, Math.min(1, value.current() / value.maximum()));
@@ -42,7 +42,7 @@ public final class StatusBarComponent extends BaseComponent {
                 colors.applyAsInt(value.fillToken()));
         var text = Minecraft.getInstance().font;
         var label = text.plainSubstrByWidth(value.label(), width);
-        context.drawString(
+        context.text(
                 text,
                 label,
                 x + (width - text.width(label)) / 2,

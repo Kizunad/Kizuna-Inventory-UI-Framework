@@ -3,7 +3,7 @@ package dev.kizuna.inventoryui.client;
 import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 
@@ -32,7 +32,7 @@ final class ThemedButton extends Button {
     }
 
     @Override
-    public void renderWidget(GuiGraphics context, int mouseX, int mouseY, float delta) {
+    protected void extractContents(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         // 键盘焦点与鼠标悬停保持一致提示，主题切换无需重建按钮。
         boolean highlighted = isHovered() || isFocused();
         context.fill(
@@ -41,7 +41,7 @@ final class ThemedButton extends Button {
                 getX() + getWidth(),
                 getY() + getHeight(),
                 runtime.color(highlighted ? CONTROL_HOVER : CONTROL));
-        context.renderOutline(
+        context.outline(
                 getX(),
                 getY(),
                 getWidth(),
@@ -51,7 +51,7 @@ final class ThemedButton extends Button {
         String label =
                 text.plainSubstrByWidth(
                         getMessage().getString(), Math.max(0, getWidth() - 2 * TEXT_INSET));
-        context.drawString(
+        context.text(
                 text,
                 label,
                 getX() + (getWidth() - text.width(label)) / 2,

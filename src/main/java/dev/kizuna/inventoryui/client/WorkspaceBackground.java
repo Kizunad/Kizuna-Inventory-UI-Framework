@@ -1,7 +1,6 @@
 package dev.kizuna.inventoryui.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.RenderSystem;
 
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import java.io.IOException;
@@ -9,8 +8,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
 
 /** 背景从资源管理器读取，缺失或损坏时保留主题底色；F3+T 后重新解析。 */
 final class WorkspaceBackground {
@@ -23,7 +23,7 @@ final class WorkspaceBackground {
     }
 
     static void render(
-            GuiGraphics context, FrameworkCatalog.Background background, int width, int height) {
+            GuiGraphicsExtractor context, FrameworkCatalog.Background background, int width, int height) {
         // 没有选择背景或上次加载失败时保留已经画好的主题底色。
         if (background == null) {
             return;
@@ -32,14 +32,14 @@ final class WorkspaceBackground {
         if (size.width == 0) {
             return;
         }
-        ResourceLocation texture = new ResourceLocation(background.resourceId());
-        RenderSystem.enableBlend();
+        Identifier texture = Identifier.parse(background.resourceId());
         context.enableScissor(0, 0, width, height);
         try {
             if (background.fit() == FrameworkCatalog.Fit.TILE) {
                 for (int y = 0; y < height; y += size.height) {
                     for (int x = 0; x < width; x += size.width) {
                         context.blit(
+                                RenderPipelines.GUI_TEXTURED,
                                 texture,
                                 x,
                                 y,
@@ -62,13 +62,14 @@ final class WorkspaceBackground {
                 int w = Math.max(1, (int) Math.ceil(size.width * scale));
                 int h = Math.max(1, (int) Math.ceil(size.height * scale));
                 context.blit(
+                        RenderPipelines.GUI_TEXTURED,
                         texture,
                         (width - w) / 2,
                         (height - h) / 2,
+                        0,
+                        0,
                         w,
                         h,
-                        0,
-                        0,
                         size.width,
                         size.height,
                         size.width,
@@ -80,7 +81,7 @@ final class WorkspaceBackground {
     }
 
     static void thumbnail(
-            GuiGraphics context,
+            GuiGraphicsExtractor context,
             FrameworkCatalog.Background background,
             int x,
             int y,
@@ -98,13 +99,14 @@ final class WorkspaceBackground {
         int sw = Math.max(1, (int) Math.round(width / scale));
         int sh = Math.max(1, (int) Math.round(height / scale));
         context.blit(
-                new ResourceLocation(background.resourceId()),
+                RenderPipelines.GUI_TEXTURED,
+                Identifier.parse(background.resourceId()),
                 x,
                 y,
-                width,
-                height,
                 (size.width - sw) / 2f,
                 (size.height - sh) / 2f,
+                width,
+                height,
                 sw,
                 sh,
                 size.width,
@@ -116,7 +118,7 @@ final class WorkspaceBackground {
         try (var stream =
                         Minecraft.getInstance()
                                 .getResourceManager()
-                                .open(new ResourceLocation(id));
+                                .open(Identifier.parse(id));
                 var image = NativeImage.read(stream)) {
             return new Size(image.getWidth(), image.getHeight());
         } catch (IOException | RuntimeException failure) {

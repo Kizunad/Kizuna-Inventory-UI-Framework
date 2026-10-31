@@ -1,12 +1,11 @@
 package dev.kizuna.inventoryui.wiresmoke;
 
 import dev.kizuna.inventoryui.protocol.UiWire;
+import dev.kizuna.inventoryui.server.fabric.UiPayload;
 import dev.kizuna.inventoryui.wiresmoke.pb.SmokeProtocol;
 
 import net.fabricmc.api.DedicatedServerModInitializer;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -16,8 +15,6 @@ import java.util.Map;
 
 /** 仅测试源集加载的本地 Fabric 服务端，验证真正的 Play CustomPayload 往返。 */
 public final class WireServer implements DedicatedServerModInitializer {
-    private static final ResourceLocation CHANNEL = new ResourceLocation("kizuna_inventory_ui", "message");
-
     @Override
     public void onInitializeServer() {
         // PID 只用于验收脚本异常清理本次子进程，正常路径在客户端断开后退出。
@@ -29,15 +26,13 @@ public final class WireServer implements DedicatedServerModInitializer {
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register(
                 (handler, server) -> server.halt(false));
         ServerPlayNetworking.registerGlobalReceiver(
-                CHANNEL,
-                (server, player, handler, buffer, sender) -> {
-                    // 网络线程只读取有界字节；协议解析与发送回包串行到真实服务器线程。
-                    if (buffer.readableBytes() > UiWire.MAX_PACKET_BYTES) {
+                UiPayload.TYPE,
+                (payload, context) -> {
+                    // Fabric 在真实服务器线程回调；超限包按夹具错误抛出。
+                    if (payload.bytes().length > UiWire.MAX_PACKET_BYTES) {
                         throw new IllegalArgumentException("oversized fixture packet");
                     }
-                    byte[] bytes = new byte[buffer.readableBytes()];
-                    buffer.readBytes(bytes);
-                    server.execute(() -> receive(player, UiWire.decode(bytes)));
+                    receive(context.player(), UiWire.decode(payload.bytes()));
                 });
     }
 
@@ -105,8 +100,6 @@ public final class WireServer implements DedicatedServerModInitializer {
 
     private static void send(ServerPlayer player, UiWire.Packet packet) {
         // 与客户端使用同一份 proto 生成的二进制信封，不额外添加长度前缀。
-        var buffer = PacketByteBufs.create();
-        buffer.writeBytes(UiWire.encode(packet));
-        ServerPlayNetworking.send(player, CHANNEL, buffer);
+        ServerPlayNetworking.send(player, new UiPayload(UiWire.encode(packet)));
     }
 }

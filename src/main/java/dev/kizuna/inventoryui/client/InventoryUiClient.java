@@ -1,19 +1,20 @@
 package dev.kizuna.inventoryui.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.kizuna.inventoryui.client.component.ModelPreviewRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
-import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import org.lwjgl.glfw.GLFW;
 
 /** 框架入口只负责加载、工作台快捷键、HUD 绘制及连接生命周期。 */
@@ -52,22 +53,26 @@ public final class InventoryUiClient implements ClientModInitializer {
                             }
                         });
         FabricUiTransport.install(runtime);
+        // GUI 渲染器初始化时冻结画中画注册表，必须在客户端入口登记。
+        PictureInPictureRendererRegistry.register(context -> new ModelPreviewRenderer());
         var key =
-                KeyBindingHelper.registerKeyBinding(
+                KeyMappingHelper.registerKeyMapping(
                         new KeyMapping(
                                 "key.kizuna_inventory_ui.workspace",
                                 InputConstants.Type.KEYSYM,
                                 GLFW.GLFW_KEY_I,
-                                "category.kizuna_inventory_ui"));
+                                KeyMapping.Category.register(
+                                        Identifier.fromNamespaceAndPath(
+                                                "kizuna_inventory_ui", "general"))));
         ClientTickEvents.END_CLIENT_TICK.register(
                 client -> {
                     // 消费按键队列但只在游戏内空闲界面打开，避免按键穿透到聊天或其他屏幕。
                     while (key.consumeClick()) {
-                        if (client.player != null && client.screen == null) {
+                        if (client.player != null && client.gui.screen() == null) {
                             runtime.openWorkspace();
                         }
                     }
-                    if (!(client.screen instanceof WorkspaceScreen)
+                    if (!(client.gui.screen() instanceof WorkspaceScreen)
                             || !client.isWindowActive()) {
                         // 切屏或窗口失焦后撤销拖动，旧的鼠标释放事件不能再提交操作。
                         runtime.cancelInput();
@@ -82,37 +87,30 @@ public final class InventoryUiClient implements ClientModInitializer {
                     if (client.getConnection() != null && client.getConnection() != handler) {
                         return;
                     }
-                    if (client.screen instanceof WorkspaceScreen) {
-                        client.setScreen(null);
+                    if (client.gui.screen() instanceof WorkspaceScreen) {
+                        client.gui.setScreen(null);
                     }
                     runtime.disconnected();
                 }));
-        HudRenderCallback.EVENT.register(
-                (context, delta) -> {
+        // 挂在原版 HUD 最后，与旧 HudRenderCallback 一样叠在所有原版 HUD 元素之上。
+        HudElementRegistry.addLast(
+                Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "huds"),
+                (context, deltaTracker) -> {
                     // 库存页面只绘制自己的内容；工作台在布局面板内显式绘制 HUD 预览。
                     var client = Minecraft.getInstance();
-                    if (client.options.hideGui
-                            || client.screen instanceof VanillaHudHidden) {
+                    if (client.gui.hud.isHidden()
+                            || client.gui.screen() instanceof VanillaHudHidden) {
                         return;
                     }
                     runtime.renderHuds(
                             context,
                             client.getWindow().getGuiScaledWidth(),
                             client.getWindow().getGuiScaledHeight(),
-                            delta);
+                            deltaTracker.getGameTimeDeltaPartialTick(false));
                 });
-        ResourceManagerHelper.get(PackType.CLIENT_RESOURCES)
+        ResourceLoader.get(PackType.CLIENT_RESOURCES)
                 .registerReloadListener(
-                        new SimpleSynchronousResourceReloadListener() {
-                            @Override
-                            public ResourceLocation getFabricId() {
-                                return new ResourceLocation("kizuna_inventory_ui", "backgrounds");
-                            }
-
-                            @Override
-                            public void onResourceManagerReload(ResourceManager manager) {
-                                runtime.reloadBackgrounds();
-                            }
-                        });
+                        Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "backgrounds"),
+                        (ResourceManagerReloadListener) manager -> runtime.reloadBackgrounds());
     }
 }

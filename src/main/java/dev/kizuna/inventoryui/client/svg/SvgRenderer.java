@@ -6,8 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.resources.Identifier;
 
 /** 已注册 SVG 的惰性网格缓存，资源重载后同时清除成功与失败结果。 */
 public final class SvgRenderer {
@@ -22,7 +22,13 @@ public final class SvgRenderer {
     }
 
     public boolean draw(
-            GuiGraphics context, String assetId, int x, int y, int width, int height, int tint) {
+            GuiGraphicsExtractor context,
+            String assetId,
+            int x,
+            int y,
+            int width,
+            int height,
+            int tint) {
         // 缺失注册是接入错误；已注册但坏资源只跳过绘制，日志每次重载最多报告一次。
         if (!assets.containsKey(assetId)) {
             throw new IllegalArgumentException("unregistered SVG asset: " + assetId);
@@ -44,7 +50,7 @@ public final class SvgRenderer {
         try (var input =
                 Minecraft.getInstance()
                         .getResourceManager()
-                        .open(new ResourceLocation(assets.get(id).resourceId()))) {
+                        .open(Identifier.parse(assets.get(id).resourceId()))) {
             return Optional.of(tessellator.tessellate(parser.parse(input)));
         } catch (IOException | RuntimeException failure) {
             System.getLogger(SvgRenderer.class.getName())

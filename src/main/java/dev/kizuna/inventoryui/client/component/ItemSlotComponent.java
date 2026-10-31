@@ -4,8 +4,8 @@ import dev.kizuna.inventoryui.client.ClientBindings;
 import dev.kizuna.inventoryui.inventory.InventoryDragSession;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 
-import io.wispforest.owo.ui.base.BaseComponent;
-import io.wispforest.owo.ui.core.OwoUIDrawContext;
+import io.wispforest.owo.ui.base.BaseUIComponent;
+import io.wispforest.owo.ui.core.OwoUIGraphics;
 import io.wispforest.owo.ui.core.Sizing;
 import org.lwjgl.glfw.GLFW;
 
@@ -14,10 +14,11 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
 /** 单个动态槽位；装备、快捷引用和投料槽都通过同一内容与落点契约接入。 */
-public final class ItemSlotComponent extends BaseComponent implements ItemDropTarget {
+public final class ItemSlotComponent extends BaseUIComponent implements ItemDropTarget {
     private static final int TEXT_INSET = 4;
     private final Supplier<ClientBindings.SlotContent> content;
     private final InventoryDragSession drag;
@@ -47,7 +48,7 @@ public final class ItemSlotComponent extends BaseComponent implements ItemDropTa
 
     @Override
     public void draw(
-            OwoUIDrawContext context, int mouseX, int mouseY, float partialTicks, float delta) {
+            OwoUIGraphics context, int mouseX, int mouseY, float partialTicks, float delta) {
         var value = content.get();
         context.fill(
                 x, y, x + width, y + height, colors.applyAsInt(ThemeTokens.INVENTORY_CELL_EVEN));
@@ -56,7 +57,7 @@ public final class ItemSlotComponent extends BaseComponent implements ItemDropTa
                     context, value.item(), value.item().count(), x, y, width, height, colors);
         } else {
             var text = Minecraft.getInstance().font;
-            context.drawString(
+            context.text(
                     text,
                     text.plainSubstrByWidth(value.label(), Math.max(1, width - 2 * TEXT_INSET)),
                     x + TEXT_INSET,
@@ -93,7 +94,8 @@ public final class ItemSlotComponent extends BaseComponent implements ItemDropTa
     }
 
     @Override
-    public boolean onMouseDown(double mouseX, double mouseY, int button) {
+    public boolean onMouseDown(MouseButtonEvent event, boolean doubleClick) {
+        int button = event.button();
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
             content.get().clear().run();
             return true;

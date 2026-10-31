@@ -9,7 +9,7 @@
 | 服务器 wire 协议 | `UiWire.VERSION=2`，Protobuf 二进制；已验证编解码及真实 Fabric 往返，与 JSON v1 不兼容，尚无生产业务联调 |
 | 协议定义／生成 | `src/main/proto/`；`protoc` 与 `protobuf-java` 固定 `4.36.2`；本地可构建独立 proto ZIP 和描述符 |
 | 可编译接入示例 | `src/demo/`，通过公开入口依赖框架，单独输出 JAR |
-| 游戏适配 | Minecraft 1.20.1 / Fabric Loader 0.16.10 / Fabric API 0.92.3+1.20.1 / Java 17 / owo-lib 0.11.2+1.20 |
+| 游戏适配 | Minecraft 26.2 / Fabric Loader 0.20.1 / Fabric API 0.161.0+26.2 / Java 25 / owo-lib 0.13.1+26.2 |
 
 “目标支持”不等于已验证兼容。正式版本必须提供依赖范围、构建和运行证据，本文随发布更新。
 
