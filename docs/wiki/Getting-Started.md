@@ -23,7 +23,7 @@
 
 `build/libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar` 为可加载的框架 JAR；`-demo.jar` 是独立示例模组，两者分别打包。框架不包含示例源码或模拟服务器。安装时同时提供 Fabric API 和 owo-lib；`-sources.jar` 不是运行产物。
 
-Linux 无窗口环境可用 `xvfb-run -a ./gradlew runSmoke`。演示检查通过后生成 `build/smoke/smoke-ok.txt` 和 `build/smoke/screenshots/workspace.png`。这是客户端模拟数据验收；真实 Fabric 通道验收另运行 `python3 scripts/wire_smoke.py`，详见[服务器通信](Server-Communication.md)。新增外框与背景截图为 `window-chrome.png`、`background-gallery.png`。
+Linux 无窗口环境用 `env -u DISPLAY -u WAYLAND_DISPLAY LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x960x24" ./gradlew runSmoke`：清掉 `DISPLAY`、`WAYLAND_DISPLAY` 并用 Mesa 软件渲染（llvmpipe），因为 26.2 客户端在 WSLg 有显示时会卡在 `glfwShowWindow`，Xvfb 下默认的 Mesa d3d12 驱动在退出时让 JVM 崩溃。演示检查通过后生成 `build/smoke/smoke-ok.txt` 和 `build/smoke/screenshots/workspace.png`。这是客户端模拟数据验收；真实 Fabric 通道验收另运行 `python3 scripts/wire_smoke.py`，详见[服务器通信](Server-Communication.md)。新增外框与背景截图为 `window-chrome.png`、`background-gallery.png`。
 
 尚无发布的 Maven 坐标。扩展开发暂时使用本地构建产物，例如在 Fabric Loom 项目中声明 `modImplementation files("libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar")`，同时声明上述运行依赖。使用消息生成类及 `ByteString` 时，还需 `compileOnly 'com.google.protobuf:protobuf-java:4.36.2'`；框架已内嵌该运行库，子 JAR 不要重复打包。客户端 UI JAR 只在客户端安装。专用服务器安装 `server/build/libs/kizuna-inventory-ui-framework-server-0.1.0-SNAPSHOT.jar` 与 Fabric API，无需 owo；业务服务端 JAR 通过[服务端模块入口](Server-Modules.md)注册，共用公共通道。其他语言服务端仍可使用 `protocolZip` 的协议源文件实现宿主。
 
