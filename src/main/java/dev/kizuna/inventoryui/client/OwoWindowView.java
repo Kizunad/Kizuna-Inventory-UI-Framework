@@ -11,11 +11,13 @@ import io.wispforest.owo.ui.core.UIComponent;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.input.KeyEvent;
 
 /** 独立 owo 组件树，业务订阅由窗口 scope 管理，渲染资源随视图释放。 */
 final class OwoWindowView implements AutoCloseable {
     final OwoUIAdapter<FlowLayout> adapter;
     private UiWindowManager.Rect previous;
+    private final UIComponent content;
 
     OwoWindowView(
             ClientRuntime runtime,
@@ -32,7 +34,8 @@ final class OwoWindowView implements AutoCloseable {
                         UIContainers::verticalFlow);
         try {
             adapter.rootComponent.allowOverflow(false);
-            adapter.rootComponent.child(factory.create(runtime, state));
+            content = factory.create(runtime, state);
+            adapter.rootComponent.child(content);
             adapter.inflateAndMount();
         } catch (RuntimeException | Error failure) {
             // 部分构建的组件树也可能持有资源，挂载失败时先释放再传播异常。
@@ -68,6 +71,24 @@ final class OwoWindowView implements AutoCloseable {
         var focus = adapter.rootComponent.focusHandler();
         if (focus != null) {
             focus.focus(null, UIComponent.FocusSource.MOUSE_CLICK);
+        }
+        if (content instanceof WindowInputHandler handler) {
+            handler.cancelInput();
+        }
+    }
+
+    boolean keyPressed(KeyEvent event) {
+        // 先交给编辑框等聚焦控件；只有未消费输入才触发窗口补充快捷键。
+        if (adapter.keyPressed(event)) {
+            return true;
+        }
+        return content instanceof WindowInputHandler handler && handler.keyPressed(event);
+    }
+
+    void keyReleased(KeyEvent event) {
+        // 失焦窗口也必须清理按下记录，避免重新聚焦后永久误判为长按。
+        if (content instanceof WindowInputHandler handler) {
+            handler.keyReleased(event);
         }
     }
 

@@ -685,6 +685,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         }
         var state = hitWindow(x, y);
         if (state == null) {
+            runtime.cancelInput();
             focused = null;
             return false;
         }
@@ -852,6 +853,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        // 模态控件与菜单先处理，业务窗口只接收工作台明确路由的剩余事件。
         int key = event.key();
         int modifiers = event.modifiers();
         if (sizeTarget != null) {
@@ -904,12 +906,17 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                 focused == null || panel != Panel.NONE || sizeTarget != null
                         ? null
                         : runtime.view(focused);
-        if (key != GLFW.GLFW_KEY_ESCAPE
-                && view != null
-                && view.adapter.keyPressed(event)) {
+        if (view != null && view.keyPressed(event)) {
             return true;
         }
         return super.keyPressed(event);
+    }
+
+    @Override
+    public boolean keyReleased(KeyEvent event) {
+        // 不把释放路由限制为活动窗口，保证失焦期间的按键锁存也能结束。
+        runtime.keyReleased(event);
+        return super.keyReleased(event);
     }
 
     @Override

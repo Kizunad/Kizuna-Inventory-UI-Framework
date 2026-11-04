@@ -454,6 +454,11 @@ public final class ClientRuntime {
         views.values().forEach(OwoWindowView::cancelInput);
     }
 
+    void keyReleased(net.minecraft.client.input.KeyEvent event) {
+        // 释放只通知现有窗口，不改变窗口焦点或打开新的视图。
+        views.values().forEach(view -> view.keyReleased(event));
+    }
+
     public ClientBindings.SlotContent slotContent(String barId, FrameworkCatalog.Slot slot) {
         // 先确认槽位属于目标栏，再向模块索取当前内容，防止跨栏错误绑定。
         var bar = catalog.slotBars().get(barId);
