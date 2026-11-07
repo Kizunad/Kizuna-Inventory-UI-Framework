@@ -41,7 +41,7 @@ public final class ClientRuntime {
             new LinkedHashMap<>();
     private final Map<UiWindowManager.WindowKey, OwoWindowView> views = new LinkedHashMap<>();
     private final Map<String, Consumer<UiWindowManager.WindowState>> featureOpened = new LinkedHashMap<>();
-    private String theme = BuiltinThemes.DARK.id();
+    private String theme = BuiltinThemes.INK_JADE.id();
     private String background;
     private boolean motion = true;
     private final Set<String> pinnedWindows = new LinkedHashSet<>();
@@ -200,8 +200,27 @@ public final class ClientRuntime {
                 FrameworkCatalog.Module.of(
                         "kiui:core",
                         Set.of(),
+                        BuiltinThemes.INK_JADE,
+                        BuiltinThemes.XUAN_PAPER,
+                        BuiltinThemes.XUAN_HUANG,
                         BuiltinThemes.DARK,
                         BuiltinThemes.LIGHT,
+                        new FrameworkCatalog.Background(
+                                "kiui:night_meridian",
+                                "kizuna_inventory_ui:textures/gui/workspace/night_meridian.png",
+                                FrameworkCatalog.Fit.COVER),
+                        new FrameworkCatalog.Background(
+                                "kiui:scroll_paper",
+                                "kizuna_inventory_ui:textures/gui/workspace/scroll_paper.png",
+                                FrameworkCatalog.Fit.COVER),
+                        new FrameworkCatalog.Background(
+                                "kiui:alchemy_room",
+                                "kizuna_inventory_ui:textures/gui/workspace/alchemy_room.png",
+                                FrameworkCatalog.Fit.COVER),
+                        new FrameworkCatalog.Background(
+                                "kiui:star_meridian",
+                                "kizuna_inventory_ui:textures/gui/workspace/star_meridian.png",
+                                FrameworkCatalog.Fit.COVER),
                         new FrameworkCatalog.Background(
                                 "kiui:cosmos",
                                 "kizuna_inventory_ui:textures/gui/workspace/cosmos.png",
@@ -415,10 +434,17 @@ public final class ClientRuntime {
         if (opened != null) {
             opened.accept(state);
         }
+        if (client.gui.screen() instanceof WorkspaceScreen screen) {
+            screen.focusWindow(state.key());
+        }
         return state;
     }
 
     public void openWorkspace() {
+        // 已显示工作区时保留其屏幕和输入会话，只让 open 负责聚焦目标窗口。
+        if (Minecraft.getInstance().gui.screen() instanceof WorkspaceScreen) {
+            return;
+        }
         Minecraft.getInstance().gui.setScreen(new WorkspaceScreen(this));
     }
 

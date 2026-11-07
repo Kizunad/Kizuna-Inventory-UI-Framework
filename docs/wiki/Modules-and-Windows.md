@@ -1,5 +1,9 @@
 # 模块与窗口扩展
 
+`ClientRuntime.open(feature, objectId)` 打开或聚焦窗口时同步工作区键盘焦点；重复打开同一窗口不清除
+当前控件焦点。`openWorkspace()` 在工作区已显示时复用原屏幕，重新显示时聚焦最高层可见窗口。
+模块无需操作 `WorkspaceScreen` 内部字段即可实现公开定向打开接口。
+
 `ClientBindings.featureOpened(featureId, Consumer<WindowState>)` 为本模块已声明的功能登记打开回调。
 多个功能可以指向同一个单例窗口；每次通过 `ClientRuntime.open` 新开、恢复或聚焦都会在组件树就绪后调用
 相应功能的回调，可用于选择页签或定位内容。回调不创建额外窗口；权限检查仍在打开之前完成。

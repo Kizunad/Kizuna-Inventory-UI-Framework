@@ -19,7 +19,7 @@
 ./gradlew runDemo
 ```
 
-请先确保本机装有 JDK 25；Gradle 守护进程按 `gradle/gradle-daemon-jvm.properties` 自动选用本机 JDK 25。构建需要相邻目录的 `Kizuna-Meridian-Mod-Framework` 仓库：`settings.gradle` 应用其 `scripts/workspace.gradle`，上表版本与 Gradle 9.8.0、Fabric Loom 1.19.3 都取自其中的版本目录 `scripts/libs.versions.toml`。`runDemo` 从标题页自动打开示例工作台；普通框架使用者进入世界后按 **I** 打开，键位可在游戏设置中修改。
+请先确保本机装有 JDK 25；Gradle 守护进程按 `gradle/gradle-daemon-jvm.properties` 自动选用本机 JDK 25。构建需要相邻目录的 `Kizuna-Meridian-Mod-Framework` 仓库：`settings.gradle` 应用其 `scripts/workspace.gradle`，上表版本与 Gradle 9.8.0、Fabric Loom 1.19.3 都取自其中的版本目录 `scripts/libs.versions.toml`。`runDemo` 从标题页自动打开示例工作台；普通框架使用者进入世界后按 **I** 打开，键位可在游戏设置中修改。工作台默认使用墨玉主题、透明背景，可在“外观”切换内置的墨玉、宣纸、玄黄、深色、浅色主题和背景图，见[主题与背景](Themes-and-Backgrounds.md)。
 
 `build/libs/kizuna-inventory-ui-framework-0.1.0-SNAPSHOT.jar` 为可加载的框架 JAR；`-demo.jar` 是独立示例模组，两者分别打包。框架不包含示例源码或模拟服务器。安装时同时提供 Fabric API 和 owo-lib；`-sources.jar` 不是运行产物。
 

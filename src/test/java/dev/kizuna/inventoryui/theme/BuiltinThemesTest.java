@@ -6,7 +6,12 @@ import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class BuiltinThemesTest {
     private static final int TRANSPARENT_COLOR = 0x00000000;
@@ -30,5 +35,26 @@ class BuiltinThemesTest {
                 BuiltinThemes.DARK.colors().get(ThemeTokens.INVENTORY_CELL_ODD).intValue(),
                 BuiltinThemes.color(theme, ThemeTokens.INVENTORY_CELL_ODD),
                 "局部覆盖主题仍须为未声明的网格颜色提供默认值");
+    }
+
+    @Test
+    void everyBuiltinThemeDefinesEveryToken() throws IllegalAccessException {
+        // 内置主题都是完整调色板，不靠回退补色；新增令牌或主题时漏填任何一项都在这里失败。
+        Set<String> tokens = new HashSet<>();
+        for (Field field : ThemeTokens.class.getFields()) {
+            if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
+                tokens.add((String) field.get(null));
+            }
+        }
+        var themes =
+                List.of(
+                        BuiltinThemes.INK_JADE,
+                        BuiltinThemes.XUAN_PAPER,
+                        BuiltinThemes.XUAN_HUANG,
+                        BuiltinThemes.DARK,
+                        BuiltinThemes.LIGHT);
+        for (var theme : themes) {
+            assertEquals(tokens, theme.colors().keySet(), theme.id());
+        }
     }
 }

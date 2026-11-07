@@ -6,7 +6,7 @@
 
 当前主题控制框架组件颜色、文字色和边框色；尺寸沿用共享布局常量，窗口动画单独设置。背景控制工作台底图及铺放方式。用户可以组合不同来源的主题与背景，切换背景不应改变槽位容量或业务状态。
 
-当前 `Theme(id, colors)` 保存不可变的 ARGB 颜色令牌表；`Background(id, resourceId, fit)` 保存资源 ID 和 `COVER`、`CONTAIN`、`TILE` 铺放方式。`ClientRuntime.theme(id)` 和 `background(id)` 立即应用选择，工作台“外观”菜单从注册目录生成。`background(null)` 恢复主题底色。默认深色主题的工作台底色完全透明，且不默认选择背景图片：游戏内直接显示原本的世界画面，不加暗幕、不切换摄像机；玩家使用第一人称时保留第一人称视角。没有游戏世界的独立演示使用原版菜单背景，避免透明区域残留上一帧。背景通过 Minecraft 资源管理器加载，F3+T 清空尺寸缓存，读取失败记录资源 ID 并显示主题底色。纹理由 Minecraft 纹理管理器管理。
+当前 `Theme(id, title, colors)` 保存外观菜单标题和不可变的 ARGB 颜色令牌表，两参数 `Theme(id, colors)` 以 ID 作标题；`Background(id, resourceId, fit)` 保存资源 ID 和 `COVER`、`CONTAIN`、`TILE` 铺放方式。`ClientRuntime.theme(id)` 和 `background(id)` 立即应用选择，工作台“外观”菜单从注册目录生成。`background(null)` 恢复主题底色。默认墨玉主题的工作台底色完全透明，且不默认选择背景图片：游戏内直接显示原本的世界画面，不加暗幕、不切换摄像机；玩家使用第一人称时保留第一人称视角。没有游戏世界的独立演示使用原版菜单背景，避免透明区域残留上一帧。背景通过 Minecraft 资源管理器加载，F3+T 清空尺寸缓存，读取失败记录资源 ID 并显示主题底色。纹理由 Minecraft 纹理管理器管理。
 
 | 注册项 | 需要描述的内容 |
 |---|---|
@@ -28,11 +28,39 @@
 | `INVENTORY_DROP_VALID` / `INVENTORY_DROP_INVALID` | `inventory.dropValid` / `inventory.dropInvalid` | 可接受与不可接受落点的半透明覆盖色 |
 | `HUD_BACKGROUND` / `HUD_TEXT` | `hud.background` / `hud.text` | 示例 HUD 的底色和文字，扩展 HUD 也可复用 |
 
-自定义主题可以只覆盖部分令牌，缺省令牌回退到内置 `kiui:dark`，未知令牌最终回退为白色；另有完整内置主题 `kiui:light`。显式透明色同样是有效覆盖值。子组件可读取 `runtime.color(token)`，但框架不会自动重设任意 owo 子组件的样式。
+自定义主题可以只覆盖部分令牌，缺省令牌回退到内置 `kiui:dark`（不随默认主题改变），未知令牌最终回退为白色；内置主题见下文[内置主题](#内置主题)，均定义全部令牌。显式透明色同样是有效覆盖值。子组件可读取 `runtime.color(token)`，但框架不会自动重设任意 owo 子组件的样式。
 
 库存网格使用 `new InventoryGridComponent(state, containerId, cellSize, moves, runtime::color)` 时，每帧读取当前主题，已打开的网格在切换外观后立即更新。保留的四参数构造方法使用内置深色主题，适用于独立使用场景。示例 HUD 同样在绘制回调中读取主题；不缓存构造时的颜色。
 
 布局尺寸、边距和交互步长目前通过有单位说明的常量管理；跨工作台、窗口适配器及输入命中的尺寸共享 `WorkspaceMetrics`。标题栏为 22 逻辑像素，普通管理按钮宽 22、关闭按钮宽 20，紧凑模式宽 18；图标显示为 14×14。窗口转场为 180 ms 三次 ease-out，可通过外观菜单或 `runtime.motion(false)` 关闭。间距的可注册主题令牌尚未实现。
+
+## 内置主题
+
+窗口控制图标随当前主题文字色染色，宣纸与浅色主题同样保持可读对比度。
+
+框架模块 `kiui:core` 内置五套主题，均定义全部颜色令牌；新配置默认 `kiui:ink_jade`。外观菜单按注册顺序列出“主题：标题”，每行右侧依次显示目标主题的面板、标题栏、文字、强调和标题短线五个色块，当前主题以强调色描边。选择立即生效，离开工作台时写入本地偏好。
+
+| ID | 标题 | 配色 | 建议搭配背景 |
+|---|---|---|---|
+| `kiui:ink_jade` | 墨玉 | 墨色面板、玉色强调、朱砂标题短线 | `kiui:night_meridian` 夜脉 |
+| `kiui:xuan_paper` | 宣纸 | 浅色纸底、墨字、朱砂强调、铜锈绿标题短线 | `kiui:scroll_paper` 残卷 |
+| `kiui:xuan_huang` | 玄黄 | 玄色暖底、赭石强调、铜色标题短线 | `kiui:alchemy_room` 丹房 |
+| `kiui:dark` | 深色 | 原灰绿渐变、浅金强调 | `kiui:cosmos` 远空 |
+| `kiui:light` | 浅色 | 浅灰蓝面板、蓝色强调 | 主题底色 |
+
+主题和背景分别选择，表中搭配只是建议；`kiui:star_meridian` 星图经络适合任一深色主题。宣纸与浅色主题像原有浅色主题一样声明近不透明的工作台底色，选择背景图片后由图片覆盖。
+
+![外观菜单：五套主题的标题与预览色块](https://raw.githubusercontent.com/Kizunad/Kizuna-Inventory-UI-Framework/main/docs/media/theme-menu.png)
+
+![墨玉主题与夜脉背景](https://raw.githubusercontent.com/Kizunad/Kizuna-Inventory-UI-Framework/main/docs/media/theme-ink-jade.png)
+
+![宣纸主题与残卷背景](https://raw.githubusercontent.com/Kizunad/Kizuna-Inventory-UI-Framework/main/docs/media/theme-xuan-paper.png)
+
+![玄黄主题与丹房背景](https://raw.githubusercontent.com/Kizunad/Kizuna-Inventory-UI-Framework/main/docs/media/theme-xuan-huang.png)
+
+截图来自 Linux Xvfb 客户端，经外观菜单实际点击切换。窗口标题栏控制图标按主题文字色染色，
+宣纸与浅色主题保持清晰对比。`runSmoke` 覆盖主题切换、关闭保存、从磁盘重读及重开窗口，
+同时验证拖放、拆堆、跨窗转移、槽位和窗口控制。示例内容由示例模块绘制，接入方仍需使用主题令牌。
 
 ## 资源命名与选择
 
@@ -40,9 +68,9 @@
 
 背景铺放可声明覆盖裁剪、完整显示或平铺。模块给出默认值，资源包可以按资源 ID 替换图像，用户设置决定当前选择。模块主题或背景暂时缺失时保留已保存的 ID，运行中使用默认外观；已注册背景资源加载失败时回退主题底色并记录资源诊断。
 
-内置 `kiui:cosmos`（远空）和 `kiui:terrain`（暮原）作为可选背景，也支持随 JAR 或资源包分发的静态资源。自定义绘制背景属于待评估扩展点，不承诺加载任意脚本或自动下载远端资源。
+内置 `kiui:night_meridian`（夜脉）、`kiui:scroll_paper`（残卷）、`kiui:alchemy_room`（丹房）、`kiui:star_meridian`（星图经络）、`kiui:cosmos`（远空）和 `kiui:terrain`（暮原）作为可选背景，均为 1536×1024、`COVER` 铺放；也支持随 JAR 或资源包分发的静态资源。自定义绘制背景属于待评估扩展点，不承诺加载任意脚本或自动下载远端资源。
 
-适用于当前 `0.1.0-SNAPSHOT` 源码：新配置默认透明；已有配置保存的背景选择继续生效。旧配置若仍显示远空，可在“外观 → 背景：主题底色（默认透明）”清除图片选择，并使用 `kiui:dark`。浅色主题及自定义主题仍可声明自己的底色。
+适用于当前 `0.1.0-SNAPSHOT` 源码：新配置默认墨玉主题、透明背景；已有配置保存的主题与背景选择继续生效。旧配置若仍显示远空，可在“外观 → 背景：主题底色（默认透明）”清除图片选择，并选“主题：墨玉”。浅色主题及自定义主题仍可声明自己的底色。
 
 ## 偏好与预览边界
 
@@ -56,7 +84,7 @@
 
 ## 默认外观与新增令牌
 
-默认深色主题的工作台背景透明，窗口仍采用灰绿渐变、浅金强调色、细边高光与多层阴影。顶部仅绘制“功能／HUD 布局／外观”三个小按钮，底部只显示最小化窗口的独立恢复／关闭卡片，两处均不铺整条底板；展开菜单的高度随内容收缩。原版 HUD 在工作台打开期间隐藏，详见 [HUD 与槽位栏](HUD-and-Slot-Bars.md)。新增令牌包括：
+默认墨玉主题的工作台背景透明，窗口采用两段渐变、细边高光与多层阴影，强调色只用于标题短线、悬停边和进度。顶部仅绘制“功能／HUD 布局／外观”三个小按钮，底部只显示最小化窗口的独立恢复／关闭卡片，两处均不铺整条底板；展开菜单的高度随内容收缩。原版 HUD 在工作台打开期间隐藏，详见 [HUD 与槽位栏](HUD-and-Slot-Bars.md)。新增令牌包括：
 
 | 常量 | 作用 |
 |---|---|

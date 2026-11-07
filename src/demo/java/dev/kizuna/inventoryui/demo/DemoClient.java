@@ -28,6 +28,8 @@ public final class DemoClient implements ClientModInitializer {
     private static final int WINDOW_WIDTH = 1280;
     private static final int WINDOW_HEIGHT = 720;
     private static final int GUI_SCALE = 2;
+    private static final int INVENTORY_WINDOW_X = 20;
+    private static final int INVENTORY_WINDOW_Y = 38;
     private static final int STATUS_WINDOW_X = 306;
     private static final int STATUS_WINDOW_Y = 60;
 
@@ -60,7 +62,8 @@ public final class DemoClient implements ClientModInitializer {
     private static final int CAPTURE_CHROME_TICK = 200;
     private static final int OPEN_BACKGROUNDS_TICK = 210;
     private static final int CAPTURE_BACKGROUNDS_TICK = 220;
-    private static final int FINISH_SMOKE_TICK = 230;
+    private static final int THEME_MENU_TICK = 230;
+    private static final int FINISH_SMOKE_TICK = 270;
     private static final int SIZE_ACTION_OFFSET = 75;
     private static final int PIN_ACTION_OFFSET = 31;
     private static final int MINIMIZE_ACTION_OFFSET = 53;
@@ -90,12 +93,14 @@ public final class DemoClient implements ClientModInitializer {
     private static final int HUD_MENU_Y = 12;
 
     private boolean opened;
+    private boolean displayPrepared;
     private int ticks;
     private int totalTicks;
     private UiWindowManager.WindowState inventory;
     private UiWindowManager.WindowState status;
     private UiWindowManager.WindowState storage;
     private UiWindowManager.WindowState components;
+    private ThemeJourney themeJourney;
 
     @Override
     public void onInitializeClient() {
@@ -113,19 +118,24 @@ public final class DemoClient implements ClientModInitializer {
                             && client.gui.screen() instanceof TitleScreen
                             && client.gui.overlay() == null) {
                         // 等待资源加载遮罩消失再打开窗口，确保 owo 组件能够正确挂载和测量。
-                        GLFW.glfwSetWindowSize(
-                                client.getWindow().handle(), WINDOW_WIDTH, WINDOW_HEIGHT);
-                        client.options.guiScale().set(GUI_SCALE);
-                        client.resizeGui();
+                        if (!displayPrepared) {
+                            GLFW.glfwSetWindowSize(client.getWindow().handle(), WINDOW_WIDTH, WINDOW_HEIGHT);
+                            client.options.guiScale().set(GUI_SCALE);
+                            client.resizeGui();
+                            displayPrepared = true;
+                            return;
+                        }
+                        // GLFW 的尺寸回调在后续帧到达；用最终视口开窗，避免拖动位置被旧视口裁切。
+                        if (client.getWindow().getGuiScaledWidth() != WINDOW_WIDTH / GUI_SCALE
+                                || client.getWindow().getGuiScaledHeight() != WINDOW_HEIGHT / GUI_SCALE) {
+                            return;
+                        }
                         var runtime = InventoryUiClient.runtime();
                         runtime.openWorkspace();
                         inventory = runtime.open("demo:inventory", null);
+                        placeWindow(inventory, INVENTORY_WINDOW_X, INVENTORY_WINDOW_Y);
                         status = runtime.open("demo:status", null);
-                        runtime.workspace()
-                                .windows()
-                                .beginDrag(status.key(), status.bounds().x(), status.bounds().y());
-                        runtime.workspace().windows().dragTo(STATUS_WINDOW_X, STATUS_WINDOW_Y);
-                        runtime.workspace().windows().endDrag();
+                        placeWindow(status, STATUS_WINDOW_X, STATUS_WINDOW_Y);
                         opened = true;
                     }
                     if (opened && smoke && ticks == ACCEPT_MOVE_TICK) {
@@ -135,12 +145,16 @@ public final class DemoClient implements ClientModInitializer {
                         double x = bounds.x() + GRID_GRAB_X;
                         double y = bounds.y() + GRID_GRAB_Y;
                         screen.mouseClicked(mouse(x, y, GLFW.GLFW_MOUSE_BUTTON_LEFT), false);
+                        require(InventoryUiClient.runtime().drag().current() != null,
+                                "grid press must start dragging at " + x + "," + y + "; window=" + bounds);
                         screen.mouseDragged(mouse(
                                 x + ACCEPT_MOVE_DISTANCE,
                                 y,
                                 GLFW.GLFW_MOUSE_BUTTON_LEFT),
                                 ACCEPT_MOVE_DISTANCE,
                                 0);
+                        require(InventoryUiClient.runtime().drag().current() != null,
+                                "grid drag must retain its payload");
                         screen.mouseReleased(mouse(
                                 x + ACCEPT_MOVE_DISTANCE, y, GLFW.GLFW_MOUSE_BUTTON_LEFT));
                         require(
@@ -194,7 +208,7 @@ public final class DemoClient implements ClientModInitializer {
                                 message -> {});
                     }
                     if (opened && smoke && ticks == RESTORE_THEME_TICK) {
-                        InventoryUiClient.runtime().theme(BuiltinThemes.DARK.id());
+                        InventoryUiClient.runtime().theme(BuiltinThemes.INK_JADE.id());
                         InventoryUiClient.runtime().background(null);
                     }
                     if (opened && smoke && ticks == OPEN_HUD_TICK) {
@@ -243,12 +257,7 @@ public final class DemoClient implements ClientModInitializer {
                         var runtime = InventoryUiClient.runtime();
                         runtime.workspace().windows().minimize(status.key());
                         storage = runtime.open("demo:case", null);
-                        runtime.workspace()
-                                .windows()
-                                .beginDrag(
-                                        storage.key(), storage.bounds().x(), storage.bounds().y());
-                        runtime.workspace().windows().dragTo(CASE_WINDOW_X, CASE_WINDOW_Y);
-                        runtime.workspace().windows().endDrag();
+                        placeWindow(storage, CASE_WINDOW_X, CASE_WINDOW_Y);
                     }
                     if (opened && smoke && ticks == TRANSFER_TICK) {
                         // 跨窗口释放必须到达鼠标下的容器，而不是回到来源窗口组件树。
@@ -343,6 +352,7 @@ public final class DemoClient implements ClientModInitializer {
                                         components.key(),
                                         Integer.toString(COMPONENT_WINDOW_WIDTH),
                                         Integer.toString(COMPONENT_WINDOW_HEIGHT));
+                        placeWindow(components, INVENTORY_WINDOW_X, INVENTORY_WINDOW_Y);
                     }
                     if (opened && smoke && ticks == CAPTURE_COMPONENTS_TICK) {
                         Screenshot.grab(
@@ -449,9 +459,9 @@ public final class DemoClient implements ClientModInitializer {
                                 message -> {});
                     }
                     if (opened && smoke && ticks == OPEN_BACKGROUNDS_TICK) {
-                        // 外观列表第六项是缩略图入口，打开后由真实资源绘制卡片。
-                        click(client.gui.screen(), 140, 12);
-                        click(client.gui.screen(), 70, 162);
+                        // 按可见标题定位入口，主题数量变化不应让验收点到其他按钮。
+                        clickButton(client.gui.screen(), "外观");
+                        clickButton(client.gui.screen(), "背景缩略图");
                     }
                     if (opened && smoke && ticks == CAPTURE_BACKGROUNDS_TICK) {
                         Screenshot.grab(
@@ -460,6 +470,12 @@ public final class DemoClient implements ClientModInitializer {
                                 client.gameRenderer.mainRenderTarget(),
                                 1,
                                 message -> {});
+                    }
+                    if (opened && smoke && ticks >= THEME_MENU_TICK) {
+                        if (themeJourney == null) {
+                            themeJourney = new ThemeJourney(client);
+                        }
+                        themeJourney.tick(client, ticks - THEME_MENU_TICK);
                     }
                     if (opened && smoke && ticks == FINISH_SMOKE_TICK) {
                         // 截图存在且窗口生命周期清理通过后才写成功标记，最后正常退出客户端。
@@ -492,6 +508,27 @@ public final class DemoClient implements ClientModInitializer {
                         client.stop();
                     }
                 });
+    }
+
+    private static void placeWindow(UiWindowManager.WindowState window, int x, int y) {
+        // 跨窗口拖放要求来源和目标都可见，固定机位不依赖默认居中布局。
+        var windows = InventoryUiClient.runtime().workspace().windows();
+        var bounds = window.bounds();
+        windows.beginDrag(window.key(), bounds.x(), bounds.y());
+        windows.dragTo(x, y);
+        windows.endDrag();
+    }
+
+    static void clickButton(net.minecraft.client.gui.screens.Screen screen, String label) {
+        // 使用实际控件矩形点击，既核验入口存在，也保留工作台的输入分发路径。
+        for (var child : screen.children()) {
+            if (child instanceof net.minecraft.client.gui.components.Button button
+                    && button.getMessage().getString().equals(label)) {
+                click(screen, button.getX() + button.getWidth() / 2, button.getY() + button.getHeight() / 2);
+                return;
+            }
+        }
+        throw new IllegalStateException("菜单按钮不存在：" + label);
     }
 
     private static void verifyLocalBackground(net.minecraft.client.Minecraft client) {

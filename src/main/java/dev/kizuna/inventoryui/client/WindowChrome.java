@@ -138,7 +138,7 @@ final class WindowChrome {
         if (!controls) {
             return;
         }
-        // 图标走半透明 GUI 纹理管线，整张贴图缩放到按钮图标尺寸。
+        // 图标随文字色染色，浅底主题也能分辨窗口控制；整张贴图缩放到统一图标尺寸。
         for (Action action : actions(state)) {
             var area = actionBounds(state, bounds, action);
             if (area == null) {
@@ -166,7 +166,8 @@ final class WindowChrome {
                     CONTROL_TEXTURE_SIZE,
                     CONTROL_TEXTURE_SIZE,
                     CONTROL_TEXTURE_SIZE,
-                    CONTROL_TEXTURE_SIZE);
+                    CONTROL_TEXTURE_SIZE,
+                    runtime.color(TEXT));
         }
     }
 }

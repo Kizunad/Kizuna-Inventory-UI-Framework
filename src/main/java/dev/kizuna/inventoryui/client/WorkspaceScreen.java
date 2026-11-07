@@ -91,8 +91,14 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     private static final int SIZE_PANEL_HEIGHT = 100;
 
     public WorkspaceScreen(ClientRuntime runtime) {
+        // 重开工作区时把最高层可见窗口作为键盘目标，保持程序打开的聚焦语义。
         super(Component.literal("Inventory Workspace"));
         this.runtime = runtime;
+        for (var state : runtime.workspace().windows().snapshot()) {
+            if (!state.minimized()) {
+                focused = state.key();
+            }
+        }
     }
 
     @Override
@@ -256,8 +262,15 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                             }));
             runtime.catalog()
                     .themes()
-                    .keySet()
-                    .forEach(id -> rows.add(new Row("主题 " + id, () -> runtime.theme(id))));
+                    .values()
+                    .forEach(
+                            theme ->
+                                    rows.add(
+                                            new Row(
+                                                    "主题：" + theme.title(),
+                                                    () -> runtime.theme(theme.id()),
+                                                    null,
+                                                    theme.id())));
             rows.add(new Row("背景：主题底色（默认透明）", () -> runtime.background(null)));
             rows.add(new Row("背景缩略图", () -> toggle(Panel.BACKGROUNDS)));
             if (runtime.localBackgrounds() != null) {
@@ -310,6 +323,16 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                                 MENU_INSET,
                                 rowY,
                                 panelWidth - 2 * MENU_INSET,
+                                row.action));
+            } else if (row.theme != null) {
+                var themeBounds = new UiWindowManager.Rect(
+                        MENU_INSET, rowY, panelWidth - 2 * MENU_INSET, BUTTON_HEIGHT);
+                addRenderableWidget(
+                        new ThemeButton(
+                                runtime,
+                                row.theme,
+                                row.label,
+                                themeBounds,
                                 row.action));
             } else {
                 button(row.label, MENU_INSET, rowY, panelWidth - 2 * MENU_INSET, row.action);
@@ -942,6 +965,14 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         pressed = null;
     }
 
+    void focusWindow(UiWindowManager.WindowKey key) {
+        // 程序打开与鼠标切窗共享输入焦点；重复打开同窗不清理正在编辑的控件。
+        if (!key.equals(focused)) {
+            runtime.cancelInput();
+            focused = key;
+        }
+    }
+
     @Override
     public boolean isPauseScreen() {
         return false;
@@ -955,9 +986,14 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         BACKGROUNDS
     }
 
-    private record Row(String label, Runnable action, String background) {
+    /** background、theme 至多一个非空，分别对应缩略图卡片与带色块的主题行。 */
+    private record Row(String label, Runnable action, String background, String theme) {
         Row(String label, Runnable action) {
-            this(label, action, null);
+            this(label, action, null, null);
+        }
+
+        Row(String label, Runnable action, String background) {
+            this(label, action, background, null);
         }
     }
 }

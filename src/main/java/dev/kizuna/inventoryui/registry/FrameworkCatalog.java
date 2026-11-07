@@ -247,10 +247,17 @@ public final class FrameworkCatalog {
         }
     }
 
-    public record Theme(String id, Map<String, Integer> colors) implements Entry {
+    /** 标题只用于外观菜单展示，偏好与切换始终按稳定 ID。 */
+    public record Theme(String id, String title, Map<String, Integer> colors) implements Entry {
+        public Theme(String id, Map<String, Integer> colors) {
+            // 原有两参数注册保持可用，未给标题时菜单直接显示稳定 ID。
+            this(id, id, colors);
+        }
+
         public Theme {
             // 色彩令牌可以由模块扩展；复制后主题不会因调用方修改原映射而变化。
             id = namespaced(id);
+            title = nonBlank(title, "title");
             colors = Map.copyOf(Objects.requireNonNull(colors, "colors must not be null"));
             colors.keySet().forEach(key -> nonBlank(key, "color token"));
         }
