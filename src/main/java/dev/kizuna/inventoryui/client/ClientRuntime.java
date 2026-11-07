@@ -40,6 +40,7 @@ public final class ClientRuntime {
     private final Map<String, Function<FrameworkCatalog.Slot, ClientBindings.SlotContent>> bars =
             new LinkedHashMap<>();
     private final Map<UiWindowManager.WindowKey, OwoWindowView> views = new LinkedHashMap<>();
+    private final Map<String, Consumer<UiWindowManager.WindowState>> featureOpened = new LinkedHashMap<>();
     private String theme = BuiltinThemes.DARK.id();
     private String background;
     private boolean motion = true;
@@ -234,6 +235,7 @@ public final class ClientRuntime {
             bindings.featureAccess.forEach(workspace::featureAccess);
             messages.addAll(bindings.messages);
             factories.putAll(bindings.windows);
+            featureOpened.putAll(bindings.featureOpened);
             renderers.putAll(bindings.huds);
             bars.putAll(bindings.bars);
             bindings.slotBarHuds.forEach(
@@ -408,6 +410,10 @@ public final class ClientRuntime {
                 workspace.windows().close(state.key());
                 throw failure;
             }
+        }
+        var opened = featureOpened.get(feature);
+        if (opened != null) {
+            opened.accept(state);
         }
         return state;
     }

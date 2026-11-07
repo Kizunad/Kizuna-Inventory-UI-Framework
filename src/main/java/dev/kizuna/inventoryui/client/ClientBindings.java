@@ -27,6 +27,12 @@ public final class ClientBindings {
     private boolean frozen;
     final List<UiWire.Contract<?>> messages = new ArrayList<>();
     final Map<String, java.util.function.BooleanSupplier> featureAccess = new LinkedHashMap<>();
+    final Map<String, Consumer<UiWindowManager.WindowState>> featureOpened = new LinkedHashMap<>();
+
+    public void featureOpened(String featureId, Consumer<UiWindowManager.WindowState> action) {
+        // 多个入口可以共享一个窗口；每次打开或聚焦后由入口选择对应内容。
+        add(featureId, FrameworkCatalog.Feature.class, featureOpened, action);
+    }
 
     public void featureAccess(String featureId, java.util.function.BooleanSupplier access) {
         // 权限只允许绑定本模块声明的功能，不能覆盖其他附属的菜单。

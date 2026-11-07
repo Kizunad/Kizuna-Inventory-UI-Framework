@@ -1,5 +1,10 @@
 # 模块与窗口扩展
 
+`ClientBindings.featureOpened(featureId, Consumer<WindowState>)` 为本模块已声明的功能登记打开回调。
+多个功能可以指向同一个单例窗口；每次通过 `ClientRuntime.open` 新开、恢复或聚焦都会在组件树就绪后调用
+相应功能的回调，可用于选择页签或定位内容。回调不创建额外窗口；权限检查仍在打开之前完成。
+重复绑定、绑定其他模块功能以及冻结后登记均被拒绝，异常不会被忽略。
+
 模块可通过 `ClientBindings.featureAccess(featureId, BooleanSupplier)` 绑定已声明功能的动态业务权限。工作台菜单查询和 `openFeature` 共用当前判定；返回 false 时隐藏菜单并拒绝直接打开。原有 `visibleInMenu=false` 仍只表示详情入口不进入菜单，不等同于权限。模块应在权威权限撤销时关闭自己的活动窗口并清理订阅；框架不解释具体玩法。
 
 > 状态：部分实现。`FrameworkCatalog`、`WorkspaceController` 和迁入的 `UiWindowManager` 可调用；`ClientModule`、`ClientBindings`、`ClientRuntime` 与 `WorkspaceScreen` 已接入 Fabric/owo。
