@@ -55,7 +55,9 @@ var grid = new InventoryGridComponent(
 
 ## 物品展示和公共组件
 
-`grid.presentation(provider, runtime.contextMenu())` 接入 `ItemPresentation`，可提供多行 tooltip、主题边框令牌、右键操作列表、双击详情和 Shift 快速操作。`ItemAction` 定义 ID、标题、启用状态、禁用原因及动作；菜单支持方向键、Enter、Escape 和滚轮。权威快照更新使旧菜单失效。业务详情窗口始终由模块注册。
+`grid.presentation(provider, runtime.contextMenu())` 接入 `ItemPresentation`，可提供多行 tooltip、主题边框令牌、右键操作列表、双击详情和快速操作。`ItemAction` 定义 ID、标题、启用状态、禁用原因及动作；菜单支持方向键、Enter、Escape 和滚轮。权威快照更新使旧菜单失效。业务详情窗口始终由模块注册。
+
+快速操作默认不触发。要用的模块调用 `grid.quickMoveModifier(modifier)` 传入自己的判定（`QuickMoveModifier`：这一下左键按下时修饰键是否按着），成立时框架调用 `ItemPresentation.quickMove`，否则左键照常开始拖动。框架不认定任何一个键；`QuickMoveModifier.SHIFT` 是现成的「按住 Shift」，要这个习惯就显式传它。
 
 `ModelPreviewComponent(width, height, modelSupplier, colors)` 接收 `Model`，实现 `bounds()` 与 `render(matrices, collector, tickDelta)`，可选覆盖 `yUp()`。`render` 在画中画渲染阶段调用，把模型提交到 `SubmitNodeCollector`，由 `ModelPreviewRenderer` 画进独立纹理再贴回画布。画布按包围盒适配模型，左键拖动旋转、滚轮缩放。模型资源及玩家实体适配属于子 JAR。
 

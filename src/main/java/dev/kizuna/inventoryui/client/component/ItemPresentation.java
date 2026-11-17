@@ -42,5 +42,6 @@ public interface ItemPresentation {
 
     default void quickMove(InventorySnapshot.Item item) {
         // 快速转移的目标和装备规则由模块决定，框架不选择业务容器。
+        // 只有网格设了 quickMoveModifier 且判定成立时才会调到这里。
     }
 }

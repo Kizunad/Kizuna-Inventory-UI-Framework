@@ -9,6 +9,7 @@ import dev.kizuna.inventoryui.client.component.InventoryGridComponent;
 import dev.kizuna.inventoryui.client.component.ItemPresentation;
 import dev.kizuna.inventoryui.client.component.ItemSlotComponent;
 import dev.kizuna.inventoryui.client.component.ModelPreviewComponent;
+import dev.kizuna.inventoryui.client.component.QuickMoveModifier;
 import dev.kizuna.inventoryui.client.component.StatusBarComponent;
 import dev.kizuna.inventoryui.inventory.InventoryGrid;
 import dev.kizuna.inventoryui.inventory.InventorySnapshot;
@@ -199,8 +200,16 @@ public final class DemoModule implements ClientModule {
                                                 public void inspect(InventorySnapshot.Item item) {
                                                     runtime.open("demo:status", null);
                                                 }
+
+                                                @Override
+                                                public void quickMove(InventorySnapshot.Item item) {
+                                                    // 示例没有第二个容器可搬，快速操作也只打开状态窗口。
+                                                    runtime.open("demo:status", null);
+                                                }
                                             },
-                                            runtime.contextMenu()));
+                                            runtime.contextMenu())
+                                    // 示例沿用「按住 Shift 点物品」；框架默认不触发，要显式传。
+                                    .quickMoveModifier(QuickMoveModifier.SHIFT));
                     root.child(
                             UIComponents.button(
                                     Component.literal("让下一次移动被拒绝"), button -> rejectNext = true));

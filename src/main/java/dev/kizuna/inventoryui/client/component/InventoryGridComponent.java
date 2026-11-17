@@ -37,6 +37,7 @@ public final class InventoryGridComponent extends BaseUIComponent implements Ite
     private final ToIntFunction<String> colors;
     private final InventoryDragSession drag;
     private ItemPresentation presentation = ItemPresentation.DEFAULT;
+    private QuickMoveModifier quickMoveModifier = QuickMoveModifier.NONE;
     private ItemContextMenu menu;
     private String lastClick;
     private long lastClickNanos;
@@ -122,6 +123,12 @@ public final class InventoryGridComponent extends BaseUIComponent implements Ite
             ItemPresentation presentation, ItemContextMenu menu) {
         this.presentation = Objects.requireNonNull(presentation);
         this.menu = Objects.requireNonNull(menu);
+        return this;
+    }
+
+    public InventoryGridComponent quickMoveModifier(QuickMoveModifier modifier) {
+        // 不设就没有快速移动；按哪个键算数由模块传进来，框架不写死。
+        this.quickMoveModifier = Objects.requireNonNull(modifier);
         return this;
     }
 
@@ -302,7 +309,7 @@ public final class InventoryGridComponent extends BaseUIComponent implements Ite
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT && button != GLFW.GLFW_MOUSE_BUTTON_MIDDLE) {
             return false;
         }
-        if (event.hasShiftDown() && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && quickMoveModifier.held(event)) {
             presentation.quickMove(placement.item());
             return true;
         }
