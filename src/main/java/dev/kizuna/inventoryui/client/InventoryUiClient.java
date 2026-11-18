@@ -2,6 +2,8 @@ package dev.kizuna.inventoryui.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.kizuna.inventoryui.client.component.ModelPreviewRenderer;
+import dev.kizuna.inventoryui.client.status.StatusIcons;
+import dev.kizuna.inventoryui.status.StatusGroups;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -55,15 +57,18 @@ public final class InventoryUiClient implements ClientModInitializer {
         FabricUiTransport.install(runtime);
         // GUI 渲染器初始化时冻结画中画注册表，必须在客户端入口登记。
         PictureInPictureRendererRegistry.register(context -> new ModelPreviewRenderer());
+        // 本框架的按键归在同一个分类下；分类只能登记一次，所以先取出来共用。
+        KeyMapping.Category keyCategory =
+                KeyMapping.Category.register(
+                        Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "general"));
         var key =
                 KeyMappingHelper.registerKeyMapping(
                         new KeyMapping(
                                 "key.kizuna_inventory_ui.workspace",
                                 InputConstants.Type.KEYSYM,
                                 GLFW.GLFW_KEY_I,
-                                KeyMapping.Category.register(
-                                        Identifier.fromNamespaceAndPath(
-                                                "kizuna_inventory_ui", "general"))));
+                                keyCategory));
+        StatusIcons.register(keyCategory);
         ClientTickEvents.END_CLIENT_TICK.register(
                 client -> {
                     // 消费按键队列但只在游戏内空闲界面打开，避免按键穿透到聊天或其他屏幕。
@@ -112,5 +117,9 @@ public final class InventoryUiClient implements ClientModInitializer {
                 .registerReloadListener(
                         Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "backgrounds"),
                         (ResourceManagerReloadListener) manager -> runtime.reloadBackgrounds());
+        ResourceLoader.get(PackType.CLIENT_RESOURCES)
+                .registerReloadListener(
+                        Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "status_groups"),
+                        (ResourceManagerReloadListener) StatusGroups::reload);
     }
 }

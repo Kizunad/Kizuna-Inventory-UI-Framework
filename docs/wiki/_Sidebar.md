@@ -4,6 +4,8 @@
 - [模块与窗口扩展](Modules-and-Windows.md)
 - [库存与状态](Inventory-and-State.md)
 - [HUD 与槽位栏](HUD-and-Slot-Bars.md)
+- [状态效果图标](Status-Icons.md)
+- [状态效果分类与合并](Status-Groups.md)
 - [主题与背景](Themes-and-Backgrounds.md)
 - [服务器通信](Server-Communication.md)
 - [服务端模块与统一路由](Server-Modules.md)

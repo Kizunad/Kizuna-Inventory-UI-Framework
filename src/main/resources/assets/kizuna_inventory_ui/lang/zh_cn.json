@@ -1,4 +1,10 @@
 {
   "key.kizuna_inventory_ui.workspace": "打开库存工作台",
-  "key.category.kizuna_inventory_ui.general": "库存 UI 框架"
+  "key.category.kizuna_inventory_ui.general": "库存 UI 框架",
+  "key.kizuna_inventory_ui.status_peek": "展开合并的状态效果（按住）",
+  "status_group.kizuna_inventory_ui.beneficial": "增益",
+  "status_group.kizuna_inventory_ui.harmful": "减益",
+  "status_group.kizuna_inventory_ui.neutral": "其他",
+  "status.kizuna_inventory_ui.hours": "%sh",
+  "status.kizuna_inventory_ui.more": "还有 %s 个"
 }

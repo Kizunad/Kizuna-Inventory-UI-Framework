@@ -12,6 +12,7 @@
 | 添加子 JAR、功能入口或窗口 | [模块与窗口扩展](Modules-and-Windows.md) |
 | 接入库存、拖放和共享状态 | [库存与状态](Inventory-and-State.md) |
 | 添加 HUD、快捷栏和动态槽位 | [HUD 与槽位栏](HUD-and-Slot-Bars.md) |
+| 给状态效果分类、加说明，或让状态图标让开自己的界面 | [状态效果图标](Status-Icons.md)、[状态效果分类与合并](Status-Groups.md) |
 | 注册主题、背景和资源 | [主题与背景](Themes-and-Backgrounds.md) |
 | 定义服务器输入和客户端请求 | [服务器通信](Server-Communication.md) |
 | 多个业务服务端 JAR 共用通道 | [服务端模块与统一路由](Server-Modules.md) |

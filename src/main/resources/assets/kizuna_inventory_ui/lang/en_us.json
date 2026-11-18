@@ -1,4 +1,10 @@
 {
   "key.kizuna_inventory_ui.workspace": "Open inventory workspace",
-  "key.category.kizuna_inventory_ui.general": "Inventory UI Framework"
+  "key.category.kizuna_inventory_ui.general": "Inventory UI Framework",
+  "key.kizuna_inventory_ui.status_peek": "Expand Merged Status Effects (Hold)",
+  "status_group.kizuna_inventory_ui.beneficial": "Beneficial",
+  "status_group.kizuna_inventory_ui.harmful": "Harmful",
+  "status_group.kizuna_inventory_ui.neutral": "Other",
+  "status.kizuna_inventory_ui.hours": "%sh",
+  "status.kizuna_inventory_ui.more": "%s more"
 }
