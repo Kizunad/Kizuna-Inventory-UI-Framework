@@ -71,6 +71,18 @@
 
 ## 生命周期
 
+宿主布局完成后调用 `ClientRuntime.attach(screen, viewport)` 取得
+`dev.kizuna.inventoryui.client.WindowLayer`。同一屏重复初始化复用绑定。视口用
+`UiWindowManager.Rect` 表示，以屏幕逻辑像素为单位，含左上原点，右、下边界不含。
+布局变动后及开窗前调用 `layer.viewport(rect)`。窗口管理器保存局部坐标，宿主提交原始屏幕坐标。
+
+宿主画完前景后调用 `layer.extract(graphics, x, y, delta)`。悬停前可查询 `blocksPointer(x, y)`，
+排位用 `blockedAreas()` 取得当帧占位。鼠标、滚轮、键盘和字符事件先交给层对应的同名方法；
+返回 true 表示本次事件已消费。宿主自己发起的拖动仍由宿主收尾。
+`focus(key)` 将窗口置顶；失焦调用 `cancelInput()`，宿主移除时调用 `detach()`。
+`runtime.layer(screen)` 只返回该屏的活动绑定。解绑保留同一连接内的窗口、内容树和订阅，
+明确关窗及断线通过已有窗口 scope 清理。
+
 窗口工厂返回的根组件可实现 `dev.kizuna.inventoryui.client.WindowInputHandler`，用于引用拖动、
 窗口快捷键和长按去重：
 

@@ -4,11 +4,9 @@ import static dev.kizuna.inventoryui.client.WorkspaceMetrics.*;
 import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 
 
-import dev.kizuna.inventoryui.client.component.ItemDrawing;
 import dev.kizuna.inventoryui.hud.HudLayout;
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.window.UiWindowManager;
-import dev.kizuna.inventoryui.window.WindowMotion;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -62,12 +60,9 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     private static final float HUD_SCALE_CYCLE_MIN = 0.5f;
     private static final float HUD_SCALE_CYCLE_MAX = 2f;
     private static final int PERCENT_FACTOR = 100;
-    private static final int DRAG_ICON_SIZE = 32;
-    private static final int DRAG_POINTER_GAP = 8;
 
     private final ClientRuntime runtime;
-    private UiWindowManager.WindowKey focused;
-    private UiWindowManager.WindowKey pressed;
+    private WindowLayer layer;
     private Panel panel = Panel.NONE;
     private EditBox search;
     private String query = "";
@@ -76,11 +71,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     private int bottomBarHeight;
     private int menuBottom;
     private String notice = "";
-    private UiWindowManager.WindowKey resizing;
     private String draggingHud;
-    private final Map<UiWindowManager.WindowKey, WindowMotion> motions = new LinkedHashMap<>();
-    private final Map<UiWindowManager.WindowKey, UiWindowManager.Rect> displayed =
-            new LinkedHashMap<>();
     private final Map<UiWindowManager.WindowKey, UiWindowManager.Rect> anchors =
             new LinkedHashMap<>();
     private UiWindowManager.WindowKey sizeTarget;
@@ -94,11 +85,6 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         // 重开工作区时把最高层可见窗口作为键盘目标，保持程序打开的聚焦语义。
         super(Component.literal("Inventory Workspace"));
         this.runtime = runtime;
-        for (var state : runtime.workspace().windows().snapshot()) {
-            if (!state.minimized()) {
-                focused = state.key();
-            }
-        }
     }
 
     @Override
@@ -111,7 +97,9 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
     private void updateViewport() {
         // 绘制和输入共用本帧高度，避免底栏收起后仍有不可点击的空白区域。
         bottomBarHeight = runtime.bottomBarHeight();
-        runtime.workspace().windows().resizeViewport(width, Math.max(1, height - bottomBarHeight));
+        var viewport = new UiWindowManager.Rect(0, 0, width, Math.max(1, height - bottomBarHeight));
+        layer = runtime.attach(this, viewport);
+        layer.workspaceControls(anchors, this::openSizePanel, TOOLBAR_HEIGHT);
     }
 
     private void rebuildControls() {
@@ -168,7 +156,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                                         notice = "该入口需要对象 ID，请由模块的物品或容器操作打开";
                                         return;
                                     }
-                                    focused = runtime.open(feature.id(), null).key();
+                                    runtime.open(feature.id(), null);
                                     panel = Panel.NONE;
                                     rebuildControls();
                                 }));
@@ -375,17 +363,9 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         addRenderableWidget(new ThemedButton(runtime, text, x, y, w, BUTTON_HEIGHT, action));
     }
 
-    private UiWindowManager.WindowState hitWindow(double x, double y) {
-        // 动画中的外框也是输入边界，最小化的转场只展示而不接收业务输入。
-        var states = new ArrayList<>(runtime.workspace().windowBar());
-        Collections.reverse(states);
-        for (var state : states) {
-            if (!state.minimized()
-                    && displayed.getOrDefault(state.key(), state.bounds()).contains(x, y)) {
-                return state;
-            }
-        }
-        return null;
+    private void openSizePanel(UiWindowManager.WindowKey key) {
+        sizeTarget = key;
+        rebuildControls();
     }
 
     private void buildSizeControls() {
@@ -472,8 +452,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         sizeTarget = null;
         panel = panel == target ? Panel.NONE : target;
         page = 0;
-        runtime.cancelInput();
-        pressed = null;
+        layer.cancelInput();
         rebuildControls();
     }
 
@@ -500,28 +479,9 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         if (runtime.background() != null) {
             context.fill(0, 0, width, height, runtime.color(BACKGROUND_OVERLAY));
         }
-        long now = System.nanoTime();
         var states = runtime.workspace().windowBar();
         layoutMinimizedWindows(states);
-        motions.keySet().removeIf(key -> !runtime.workspace().windows().contains(key));
-        displayed.clear();
-        for (var state : states) {
-            var motion =
-                    motions.computeIfAbsent(state.key(), key -> new WindowMotion(state.bounds()));
-            boolean immediate =
-                    state.key().equals(resizing)
-                            || state.key().equals(runtime.workspace().windows().capturedKey());
-            motion.target(
-                    state.minimized() ? anchors.get(state.key()) : state.bounds(),
-                    now,
-                    runtime.motion() && !immediate);
-            if (state.minimized() && motion.settled(now)) {
-                continue;
-            }
-            var bounds = motion.sample(now);
-            displayed.put(state.key(), bounds);
-            runtime.renderWindow(context, state, bounds, !state.minimized(), mouseX, mouseY, delta);
-        }
+        layer.extractWindows(context, mouseX, mouseY, delta);
         // HUD 预览、底栏与菜单各自另起一层，整体压在所有窗口之上。
         context.nextStratum();
         if (panel == Panel.HUD) {
@@ -563,20 +523,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
                     runtime.color(MENU));
         }
         super.extractRenderState(context, mouseX, mouseY, delta);
-        runtime.contextMenu().render(context, width, height, mouseX, mouseY, runtime::color);
-        var payload = runtime.drag().current();
-        if (payload != null) {
-            // 拖动物品浮层最后绘制，不受来源窗口边界裁剪；它只是预览，不移走权威物品。
-            ItemDrawing.draw(
-                    context,
-                    payload.item(),
-                    payload.count(),
-                    mouseX + DRAG_POINTER_GAP,
-                    mouseY + DRAG_POINTER_GAP,
-                    DRAG_ICON_SIZE,
-                    DRAG_ICON_SIZE,
-                    runtime::color);
-        }
+        layer.extractOverlay(context, mouseX, mouseY);
         if (!notice.isEmpty()) {
             context.text(
                     font,
@@ -647,25 +594,14 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             }
             var action = WindowChrome.hit(state, bounds, x, y);
             if (action == WindowChrome.Action.RESTORE) {
-                runtime.cancelInput();
+                layer.cancelInput();
                 runtime.workspace().windows().restore(state.key());
-                focused = state.key();
+                layer.focus(state.key());
             } else if (action == WindowChrome.Action.CLOSE) {
-                closeWindow(state.key());
+                layer.closeWindow(state.key());
             }
             return;
         }
-    }
-
-    private void closeWindow(UiWindowManager.WindowKey key) {
-        // 两种关闭入口走同一清理路径，确保订阅、拖动和已保存布局不会遗漏。
-        runtime.cancelInput();
-        runtime.savePreferences();
-        runtime.workspace().windows().close(key);
-        if (key.equals(focused)) {
-            focused = null;
-        }
-        pressed = null;
     }
 
     @Override
@@ -675,11 +611,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
         double y = event.y();
         int button = event.button();
         notice = "";
-        if (runtime.contextMenu().click(x, y, button)) {
-            return true;
-        }
-        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT && runtime.drag().current() != null) {
-            runtime.drag().cancel();
+        if (layer.clickOverlay(event)) {
             return true;
         }
         if (panel == Panel.HUD
@@ -706,157 +638,38 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             }
             return true;
         }
-        var state = hitWindow(x, y);
-        if (state == null) {
-            runtime.cancelInput();
-            focused = null;
-            return false;
-        }
-        if (!state.key().equals(focused)) {
-            runtime.cancelInput();
-        }
-        focused = state.key();
-        runtime.workspace().windows().focus(focused);
-        var bounds = displayed.getOrDefault(state.key(), state.bounds());
-        // 抓住动画中的窗口即接续当帧位置，绘制矩形和后续输入不发生跳变。
-        if (!bounds.equals(state.bounds())) {
-            runtime.workspace().windows().settleAt(state.key(), bounds);
-            motions.get(state.key()).target(state.bounds(), System.nanoTime(), false);
-        }
-        if (y < bounds.y() + WINDOW_HEADER_HEIGHT && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            var action = WindowChrome.hit(state, bounds, x, y);
-            if (action == null) {
-                runtime.workspace().windows().beginDrag(focused, x, y);
-            } else {
-                runtime.cancelInput();
-                switch (action) {
-                    case CLOSE -> closeWindow(focused);
-                    case RESTORE ->
-                            throw new IllegalStateException("restore belongs to minimized windows");
-                    case MINIMIZE -> {
-                        runtime.workspace().windows().minimize(focused);
-                        focused = null;
-                    }
-                    case PIN -> runtime.pinWindow(focused, !state.pinned());
-                    case SIZE -> {
-                        sizeTarget = state.key();
-                        rebuildControls();
-                    }
-                }
-            }
-            return true;
-        }
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
-                && x >= bounds.x() + bounds.width() - RESIZE_GRIP_SIZE
-                && y >= bounds.y() + bounds.height() - RESIZE_GRIP_SIZE) {
-            runtime.cancelInput();
-            resizing = focused;
-            return true;
-        }
-        pressed = focused;
-        // 保存按下时的目标，后续拖动和释放继续交给同一组件树；坐标转为适配器局部值。
-        var view = runtime.view(focused);
-        if (view != null) {
-            view.adapter.mouseClicked(view.local(event), doubleClick);
-        }
-        return true;
+        return layer.mouseClicked(event, doubleClick);
     }
 
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
-        double x = event.x();
-        double y = event.y();
         if (draggingHud != null) {
             moveHud(draggingHud, (int) dx, (int) dy);
             return true;
         }
-        if (resizing != null) {
-            // 右下角尺寸控制复用管理器的最小尺寸和视口裁切规则。
-            var state =
-                    runtime.workspace().windowBar().stream()
-                            .filter(value -> value.key().equals(resizing))
-                            .findFirst()
-                            .orElse(null);
-            if (state != null) {
-                runtime.workspace()
-                        .windows()
-                        .resize(
-                                resizing,
-                                Integer.toString(Math.max(1, (int) x - state.bounds().x())),
-                                Integer.toString(Math.max(1, (int) y - state.bounds().y())));
-            }
-            return true;
-        }
-        // 标题栏拖动由窗口管理器捕获，内容拖动则交给最初按下的窗口。
-        if (runtime.workspace().windows().dragTo(x, Math.max(TOOLBAR_HEIGHT, y))) {
-            return true;
-        }
-        var view = pressed == null ? null : runtime.view(pressed);
-        return view != null
-                ? view.adapter.mouseDragged(view.local(event), dx, dy)
-                : super.mouseDragged(event, dx, dy);
+        return layer.mouseDragged(event, dx, dy) || super.mouseDragged(event, dx, dy);
     }
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
-        double x = event.x();
-        double y = event.y();
-        int button = event.button();
         if (draggingHud != null) {
             draggingHud = null;
             runtime.savePreferences();
             return true;
         }
-        if (resizing != null) {
-            resizing = null;
-            runtime.savePreferences();
+        // 宿主菜单和底栏盖住的区域只结束拖放，不向窗内发送物品。
+        if (runtime.drag().current() != null && (panel != Panel.NONE || sizeTarget != null
+                || event.y() < TOOLBAR_HEIGHT || event.y() >= height - bottomBarHeight)) {
+            layer.cancelInput();
             return true;
         }
-        if (runtime.drag().current() != null
-                && (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
-                        || button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE)) {
-            // 释放按当前位置分发而不是按来源窗口分发，窗口遮挡和底栏命中都只有一个落点。
-            pressed = null;
-            try {
-                if (panel == Panel.NONE
-                        && sizeTarget == null
-                        && y >= TOOLBAR_HEIGHT
-                        && y < height - bottomBarHeight) {
-                    var target = hitWindow(x, y);
-                    var targetView = target == null ? null : runtime.view(target.key());
-                    if (targetView != null) {
-                        targetView.dropItem(x, y);
-                    }
-                }
-            } finally {
-                runtime.drag().cancel();
-            }
-            return true;
-        }
-        // 先结束外框拖动并清除按下目标，组件回调即使重入也不会复用这次输入。
-        boolean dragged = runtime.workspace().windows().endDrag();
-        if (dragged) {
-            runtime.savePreferences();
-        }
-        var view = pressed == null ? null : runtime.view(pressed);
-        pressed = null;
-        if (view != null) {
-            return view.adapter.mouseReleased(view.local(event));
-        }
-        return dragged || super.mouseReleased(event);
+        return layer.mouseReleased(event) || super.mouseReleased(event);
     }
 
     @Override
     public boolean mouseScrolled(double x, double y, double scrollX, double scrollY) {
         // 与旧版一致只按纵向滚动量处理；owo 适配器同样只把纵向量交给组件。
-        double amount = scrollY;
-        if (runtime.contextMenu().isOpen()) {
-            runtime.contextMenu().scroll(amount);
-            return true;
-        }
-        var payload = runtime.drag().current();
-        if (payload != null) {
-            runtime.drag().count(payload.count() + (int) amount);
+        if (layer.scrollOverlay(scrollY)) {
             return true;
         }
         // 只有最小化窗口溢出时才横向滚动；其余滚动交给鼠标所在的窗口内容。
@@ -864,21 +677,16 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             return super.mouseScrolled(x, y, scrollX, scrollY);
         }
         if (y >= height - bottomBarHeight) {
-            bottomOffset = Math.max(0, bottomOffset - (int) (amount * MINIMIZED_SCROLL_STEP));
+            bottomOffset = Math.max(0, bottomOffset - (int) (scrollY * MINIMIZED_SCROLL_STEP));
             return true;
         }
-        var state = hitWindow(x, y);
-        var view = state == null ? null : runtime.view(state.key());
-        return view != null
-                && view.adapter.mouseScrolled(
-                        x - view.adapter.x(), y - view.adapter.y(), scrollX, scrollY);
+        return layer.mouseScrolled(x, y, scrollX, scrollY);
     }
 
     @Override
     public boolean keyPressed(KeyEvent event) {
         // 模态控件与菜单先处理，业务窗口只接收工作台明确路由的剩余事件。
         int key = event.key();
-        int modifiers = event.modifiers();
         if (sizeTarget != null) {
             if (key == GLFW.GLFW_KEY_ESCAPE) {
                 sizeTarget = null;
@@ -891,33 +699,8 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             }
             return super.keyPressed(event);
         }
-        if (runtime.contextMenu().key(key)) {
+        if (layer.keyOverlay(event)) {
             return true;
-        }
-        if (panel == Panel.NONE
-                && key == GLFW.GLFW_KEY_TAB
-                && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
-            // Ctrl+Tab 循环可见窗口；普通 Tab 继续交给窗口内部的键盘焦点系统。
-            var windows =
-                    runtime.workspace().windowBar().stream()
-                            .filter(state -> !state.minimized())
-                            .toList();
-            if (!windows.isEmpty()) {
-                runtime.cancelInput();
-                focused = windows.get(0).key();
-                runtime.workspace().windows().focus(focused);
-            }
-            return true;
-        }
-        if (runtime.drag().current() != null) {
-            if (key == GLFW.GLFW_KEY_ESCAPE) {
-                runtime.drag().cancel();
-                return true;
-            }
-            if (key == GLFW.GLFW_KEY_R) {
-                runtime.drag().rotate();
-                return true;
-            }
         }
         // Escape 先收起菜单；非退出按键优先交给聚焦窗口，例如库存的旋转操作。
         if (key == GLFW.GLFW_KEY_ESCAPE && panel != Panel.NONE) {
@@ -925,52 +708,30 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             rebuildControls();
             return true;
         }
-        var view =
-                focused == null || panel != Panel.NONE || sizeTarget != null
-                        ? null
-                        : runtime.view(focused);
-        if (view != null && view.keyPressed(event)) {
-            return true;
-        }
-        return super.keyPressed(event);
+        return (panel == Panel.NONE && layer.keyInWindow(event)) || super.keyPressed(event);
     }
 
     @Override
     public boolean keyReleased(KeyEvent event) {
-        // 不把释放路由限制为活动窗口，保证失焦期间的按键锁存也能结束。
-        runtime.keyReleased(event);
-        return super.keyReleased(event);
+        return layer.keyReleased(event) || super.keyReleased(event);
     }
 
     @Override
     public boolean charTyped(CharacterEvent event) {
-        // 菜单搜索与业务输入互斥，防止一个字符同时进入两个输入框。
-        var view =
-                focused == null || panel != Panel.NONE || sizeTarget != null
-                        ? null
-                        : runtime.view(focused);
-        return view != null
-                ? view.adapter.charTyped(event)
-                : super.charTyped(event);
+        if (panel != Panel.NONE || sizeTarget != null) {
+            return super.charTyped(event);
+        }
+        return layer.charTyped(event) || super.charTyped(event);
     }
 
     @Override
     public void removed() {
-        // 暂时离开工作台只取消交互，窗口实例及订阅由各自生命周期决定是否关闭。
-        runtime.cancelInput();
-        runtime.savePreferences();
-        resizing = null;
+        // 只解绑这个屏幕；晚到的 removed 不能撤销新宿主的输入。
+        if (layer != null) {
+            layer.detach();
+        }
         draggingHud = null;
         sizeTarget = null;
-        pressed = null;
-    }
-
-    void focusWindow(UiWindowManager.WindowKey key) {
-        // 程序打开与鼠标切窗共享输入焦点；重复打开同窗不清理正在编辑的控件。
-        if (!key.equals(focused)) {
-            runtime.cancelInput();
-            focused = key;
-        }
     }
 
     @Override

@@ -11,6 +11,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -101,6 +102,12 @@ public final class InventoryUiClient implements ClientModInitializer {
                                 GLFW.GLFW_KEY_I,
                                 keyCategory));
         StatusIcons.register(keyCategory);
+        ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+            // Fabric 的逐屏事件在 init 时重新建立，同帧的宿主与窗口共用动画时刻。
+            ScreenEvents.beforeExtract(screen).register((host, graphics, x, y, delta) ->
+                    runtime.layer(host).ifPresent(WindowLayer::beginFrame));
+            ScreenEvents.remove(screen).register(host -> runtime.layer(host).ifPresent(WindowLayer::detach));
+        });
         ClientTickEvents.END_CLIENT_TICK.register(
                 client -> {
                     // 消费按键队列但只在游戏内空闲界面打开，避免按键穿透到聊天或其他屏幕。
@@ -109,11 +116,7 @@ public final class InventoryUiClient implements ClientModInitializer {
                             runtime.openWorkspace();
                         }
                     }
-                    if (!(client.gui.screen() instanceof WorkspaceScreen)
-                            || !client.isWindowActive()) {
-                        // 切屏或窗口失焦后撤销拖动，旧的鼠标释放事件不能再提交操作。
-                        runtime.cancelInput();
-                    }
+                    runtime.updateHost(client);
                     runtime.workspace().windows().tick(System.currentTimeMillis());
                     runtime.protocol().tick(System.currentTimeMillis());
                 });

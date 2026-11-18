@@ -1,6 +1,7 @@
 package dev.kizuna.inventoryui.client;
 
 import dev.kizuna.inventoryui.inventory.ItemAction;
+import dev.kizuna.inventoryui.client.status.StatusLayout.Area;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 import org.lwjgl.glfw.GLFW;
 
@@ -43,6 +44,15 @@ public final class ItemContextMenu {
         return !actions.isEmpty();
     }
 
+    Area area(int width, int height) {
+        // 同一裁切矩形用于遮挡、绘制和点击，即便菜单刚刚打开也能查询。
+        int w = Math.min(WIDTH, width);
+        visibleRows = Math.max(1, Math.min(actions.size(), height / ROW_HEIGHT));
+        x = Math.max(0, Math.min(x, width - w));
+        y = Math.max(0, Math.min(y, height - visibleRows * ROW_HEIGHT));
+        return new Area(x, y, w, visibleRows * ROW_HEIGHT);
+    }
+
     public void render(
             GuiGraphicsExtractor context,
             int width,
@@ -54,10 +64,7 @@ public final class ItemContextMenu {
         if (!isOpen()) {
             return;
         }
-        int w = Math.min(WIDTH, width);
-        visibleRows = Math.max(1, Math.min(actions.size(), height / ROW_HEIGHT));
-        x = Math.max(0, Math.min(x, width - w));
-        y = Math.max(0, Math.min(y, height - visibleRows * ROW_HEIGHT));
+        int w = area(width, height).width();
         var text = Minecraft.getInstance().font;
         context.fill(
                 x, y, x + w, y + visibleRows * ROW_HEIGHT, colors.applyAsInt(ThemeTokens.PANEL));

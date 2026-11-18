@@ -45,8 +45,7 @@ final class OwoWindowView implements AutoCloseable {
         previous = bounds;
     }
 
-    void render(
-            GuiGraphicsExtractor context, UiWindowManager.Rect bounds, int mouseX, int mouseY, float delta) {
+    void layout(UiWindowManager.Rect bounds) {
         // 外框位置或尺寸变化时同步适配器，保证绘制与输入使用同一内容区域。
         if (!bounds.equals(previous)) {
             adapter.moveAndResize(
@@ -56,6 +55,11 @@ final class OwoWindowView implements AutoCloseable {
                     Math.max(1, bounds.height() - WINDOW_HEADER_HEIGHT - WINDOW_BORDER));
             previous = bounds;
         }
+    }
+
+    void render(
+            GuiGraphicsExtractor context, UiWindowManager.Rect bounds, int mouseX, int mouseY, float delta) {
+        layout(bounds);
         // owo 0.13 把 tooltip 拆成单独调用；紧跟内容绘制，tooltip 仍属于本窗口层，与旧版层叠一致。
         adapter.extractRenderState(context, mouseX, mouseY, delta);
         adapter.drawTooltip(context, mouseX, mouseY, delta);

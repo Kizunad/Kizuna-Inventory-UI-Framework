@@ -23,11 +23,13 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 
 /** Fabric 客户端的组合根；状态、内容和业务动作由子模组提供。所有调用限定客户端线程。 */
 public final class ClientRuntime {
@@ -60,6 +62,49 @@ public final class ClientRuntime {
             };
     private String protocolError = "";
     private LocalBackgrounds localBackgrounds;
+    private WindowLayer activeLayer;
+    private Screen activeHost;
+
+    /** 在宿主完成布局后绑定；同一屏幕 resize 只更新视口。 */
+    public WindowLayer attach(Screen host, UiWindowManager.Rect viewport) {
+        Objects.requireNonNull(host);
+        Objects.requireNonNull(viewport);
+        if (host != activeHost) {
+            // 切屏只撤销输入绑定，窗口和业务订阅留在本连接。
+            if (activeLayer != null) {
+                activeLayer.detach();
+            }
+            activeLayer = new WindowLayer(this, host, viewport);
+            activeHost = host;
+        } else {
+            activeLayer.viewport(viewport);
+        }
+        return activeLayer;
+    }
+
+    public Optional<WindowLayer> layer(Screen host) {
+        if (host == activeHost) {
+            return Optional.ofNullable(activeLayer);
+        }
+        return Optional.empty();
+    }
+
+    void unbind(WindowLayer layer) {
+        if (layer == activeLayer) {
+            activeLayer = null;
+            activeHost = null;
+            savePreferences();
+        }
+    }
+
+    void updateHost(Minecraft client) {
+        // 宿主可被第三方替换；失焦时保留绑定，切屏时彻底解绑。
+        if (activeLayer != null && activeHost != client.gui.screen()) {
+            activeLayer.detach();
+        } else if (activeLayer != null && !client.isWindowActive()) {
+            activeLayer.cancelInput();
+        }
+    }
 
     public dev.kizuna.inventoryui.client.svg.SvgRenderer svg() {
         return svg;
@@ -398,11 +443,11 @@ public final class ClientRuntime {
         if (!catalog.features().containsKey(feature)) {
             throw new IllegalArgumentException("unknown feature: " + feature);
         }
-        workspace
-                .windows()
-                .resizeViewport(
-                        client.getWindow().getGuiScaledWidth(),
-                        Math.max(1, client.getWindow().getGuiScaledHeight() - bottomBarHeight()));
+        var binding = layer(client.gui.screen());
+        if (binding.isEmpty()) {
+            workspace.windows().resizeViewport(client.getWindow().getGuiScaledWidth(),
+                    Math.max(1, client.getWindow().getGuiScaledHeight() - bottomBarHeight()));
+        }
         var state =
                 workspace.openFeature(
                         feature,
@@ -434,15 +479,13 @@ public final class ClientRuntime {
         if (opened != null) {
             opened.accept(state);
         }
-        if (client.gui.screen() instanceof WorkspaceScreen screen) {
-            screen.focusWindow(state.key());
-        }
+        layer(client.gui.screen()).ifPresent(layer -> layer.focus(state.key()));
         return state;
     }
 
     public void openWorkspace() {
         // 已显示工作区时保留其屏幕和输入会话，只让 open 负责聚焦目标窗口。
-        if (Minecraft.getInstance().gui.screen() instanceof WorkspaceScreen) {
+        if (layer(Minecraft.getInstance().gui.screen()).isPresent()) {
             return;
         }
         Minecraft.getInstance().gui.setScreen(new WorkspaceScreen(this));
@@ -530,7 +573,7 @@ public final class ClientRuntime {
 
     public void renderHuds(GuiGraphicsExtractor context, int width, int height, float delta) {
         // 工作台已经绘制窗口；普通游戏 HUD 才渲染固定实例，不创建第二棵组件树。
-        if (!(Minecraft.getInstance().gui.screen() instanceof WorkspaceScreen)) {
+        if (layer(Minecraft.getInstance().gui.screen()).isEmpty()) {
             for (var state : workspace.windowBar()) {
                 if (state.hudVisible()) {
                     var source = state.bounds();
@@ -618,8 +661,12 @@ public final class ClientRuntime {
     }
 
     void disconnected() {
-        savePreferences();
-        cancelInput();
+        if (activeLayer != null) {
+            activeLayer.detach();
+        } else {
+            savePreferences();
+            cancelInput();
+        }
         protocol.disconnect();
         // scope 按后进先出清理：先通知模块断线，再清除工作台；某项失败不跳过其余清理。
         var cleanup = new DefaultUiScreenScope();
