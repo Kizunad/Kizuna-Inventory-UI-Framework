@@ -14,6 +14,7 @@ import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
@@ -22,6 +23,37 @@ import org.lwjgl.glfw.GLFW;
 /** 框架入口只负责加载、工作台快捷键、HUD 绘制及连接生命周期。 */
 public final class InventoryUiClient implements ClientModInitializer {
     private static ClientRuntime runtime;
+    private ClientPacketListener workspaceConnection;
+
+    private void registerConnections() {
+        // 窗口属于一次游戏连接。退服会丢弃客户端任务队列，因此也在客户端刻首检查实际通道。
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            if (workspaceConnection != null) {
+                closeWorkspace(client);
+            }
+            workspaceConnection = handler;
+            runtime.connected();
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
+            if (workspaceConnection == handler) {
+                closeWorkspace(client);
+            }
+        }));
+        ClientTickEvents.START_CLIENT_TICK.register(client -> {
+            if (workspaceConnection != null && !workspaceConnection.getConnection().isConnected()) {
+                closeWorkspace(client);
+            }
+        });
+    }
+
+    private void closeWorkspace(Minecraft client) {
+        // 先释放连接身份，晚到的旧回调不能重复清理或关掉下一次连接的窗口。
+        workspaceConnection = null;
+        if (client.gui.screen() instanceof WorkspaceScreen) {
+            client.gui.setScreen(null);
+        }
+        runtime.disconnected();
+    }
 
     public static ClientRuntime runtime() {
         // 扩展必须在框架初始化完成后访问运行时，避免隐式创建两份目录或状态。
@@ -85,18 +117,7 @@ public final class InventoryUiClient implements ClientModInitializer {
                     runtime.workspace().windows().tick(System.currentTimeMillis());
                     runtime.protocol().tick(System.currentTimeMillis());
                 });
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> runtime.connected());
-        ClientPlayConnectionEvents.DISCONNECT.register(
-                (handler, client) -> client.execute(() -> {
-                    // Netty 断线也可能触发回调；窗口释放和模块通知必须与渲染串行。
-                    if (client.getConnection() != null && client.getConnection() != handler) {
-                        return;
-                    }
-                    if (client.gui.screen() instanceof WorkspaceScreen) {
-                        client.gui.setScreen(null);
-                    }
-                    runtime.disconnected();
-                }));
+        registerConnections();
         // 挂在原版 HUD 最后，与旧 HudRenderCallback 一样叠在所有原版 HUD 元素之上。
         HudElementRegistry.addLast(
                 Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "huds"),
