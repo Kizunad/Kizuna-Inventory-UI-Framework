@@ -42,9 +42,9 @@
 | 按对象 ID | 容器、物品详情 | 同对象聚焦，不同对象分别创建 |
 | 按服务端会话 | 交易、制作工作站 | 校验会话有效性，再显示内容 |
 
-主屏从注册项生成功能目录；底部只在窗口最小化时生成恢复／关闭卡片。扩展模块不修改全局 tab 常量，也不直接接管其他窗口的输入。窗口的可见入口不是业务授权；服务端仍需检查每个操作。
+主屏从注册项生成功能目录，登记了摘要的窗口可以就地收小。扩展模块不修改全局 tab 常量，也不直接接管其他窗口的输入。窗口的可见入口不是业务授权；服务端仍需检查每个操作。
 
-已实现的 `WorkspaceController.features(query)` 先将固定入口置顶，再按分类和标题返回目录，`openFeature(featureId, objectId, bounds)` 使用 `SINGLETON` 或 `BY_OBJECT` 窗口策略创建或聚焦窗口，`windowBar()` 返回当前窗口，`pinFeature()` 管理固定入口。`disconnect()` 清理当前窗口但保留固定入口。Fabric 适配层提供目录搜索／分页、窗口拖动、关闭、最小化／恢复及最小化窗口卡片。`BY_OBJECT` 功能由模块通过 `ClientRuntime.open(featureId, objectId)` 打开；目录无法替模块选择业务对象。功能菜单每项只提供打开入口，已移除“固定／取消固定”按钮；既有 `pinFeature()` API 和保存的排序偏好保留。窗口标题栏的 HUD 固定功能独立保留。右下角拖动可调整窗口尺寸；Ctrl+Tab 循环窗口。固定入口、窗口外框及 HUD／外观偏好可持久化，外观菜单可恢复窗口布局。
+已实现的 `WorkspaceController.features(query)` 先将固定入口置顶，再按分类和标题返回目录，`openFeature(featureId, objectId, bounds)` 使用 `SINGLETON` 或 `BY_OBJECT` 窗口策略创建或聚焦窗口，`windowBar()` 返回当前窗口，`pinFeature()` 管理固定入口。`disconnect()` 清理当前窗口但保留固定入口。Fabric 适配层提供目录搜索／分页、窗口拖动、关闭、收小／展开及小窗锁定。`BY_OBJECT` 功能由模块通过 `ClientRuntime.open(featureId, objectId)` 打开；目录无法替模块选择业务对象。功能菜单每项只提供打开入口，已移除“固定／取消固定”按钮；既有 `pinFeature()` API 和保存的排序偏好保留。窗口标题栏的 HUD 固定功能独立保留。右下角拖动可调整窗口尺寸；Ctrl+Tab 循环窗口。固定入口、窗口外框及 HUD／外观偏好可持久化，外观菜单可恢复窗口布局。
 
 ## 子 JAR 的公开入口
 
@@ -118,7 +118,7 @@
 
 详情或操作浮窗可用六参数 `Feature(id, title, category, iconId, windowType, false)` 注册。最后一个参数 `visibleInMenu` 仅控制功能菜单显示；模块仍通过 `ClientRuntime.open(featureId, objectId)` 打开，标题、实例策略、尺寸偏好和 scope 清理与普通入口一致。原五参数构造器保持菜单可见。隐藏入口不是权限控制，业务请求仍由服务端鉴权。
 
-标题栏从左至右为尺寸、最小化、固定、关闭。尺寸编辑接受正整数，非法输入标红并保留当前尺寸；Enter 应用，Escape 取消。最小尺寸和视口约束由窗口管理器统一执行。
+标题栏管理收小、锁和关闭。右下角拖动调整展开矩形。只有登记摘要的类型才有收小与锁的入口。
 
 ### 自动尺寸与内容排布
 
@@ -130,6 +130,32 @@
 
 外框适配和内容排布各有职责。模块可用 `dev.kizuna.inventoryui.client.component.ResponsiveLayout` 包装 XML 组件树：构造参数为原组件与 `BiConsumer<Integer, Integer>`，内容区逻辑宽高变化时，在子树布局前回调模块。模块按实际余量安排换行、滚动及列宽，回调中修改原有组件，不重建选择、镜头或业务会话。owo 的 `fill(百分比)` 依据父空间计算，不会自动扣掉固定宽度的兄弟组件；混合固定侧栏时须先扣侧栏和间距，再分配列宽。
 
-普通窗口可用标题栏锁定按钮或 `runtime.pinWindow(window.key(), true)` 固定到 HUD。关闭工作台后，同一组件树继续绘制，隐藏管理按钮并停用交互；不会重新调用工厂或重复建立订阅。最小化暂时隐藏固定窗口，恢复保留固定状态。明确关窗和断线释放该实例；重连不会自动重开业务会话。工位 `STATION` 不允许固定，系统窗口不允许用户修改布局。
+### 两版界面
 
-固定偏好按窗口类型保存；模块下次主动打开该类型窗口时恢复偏好。多个对象实例仍保持独立内容与 scope。转场期间按当帧可见外框命中，抓住窗口后立即接续拖动。
+框架同时带两版界面，玩家在「外观」菜单里的「界面：切换到…」或用客户端命令 `/kiui version classic|modern` 切换，偏好里的 `uiVersion` 记下选的是哪一版，没有这一项时是 `classic`。
+
+| | 旧版 `classic` | 新版 `modern` |
+|---|---|---|
+| 整屏界面 | `WorkspaceScreen`：顶栏「功能／HUD 布局／外观」、底栏卡片、尺寸输入 | `ModernWorkspaceScreen`：顶栏「功能／外观」，收小的窗口就地变成小窗 |
+| 外框 | `WindowChrome`，标题栏 22 像素 | `ModernChrome`，标题栏 14 像素 |
+| 锁到游戏画面 | 整个展开窗，按窗口类型记在 `pinnedWindows` | 小窗摘要，按功能记在 `modern.compact` |
+| 主题 | 墨玉、宣纸、玄黄、深色、浅色，选择记在 `theme` | 琉璃 |
+| 窗口矩形 | `windows` | `modern.windows` |
+
+每一版有自己的目录、窗口模型和窗口工厂（`UiEdition` 的两个实现），`ClientRuntime.catalog()`、`workspace()`、`theme()` 返回当前这一版的。模块默认两版共用同一份声明和绑定；某个模块在新版里窗口不一样时，实现 `ClientModule.modernDefinition()` 给出新版的声明（模块 ID 不变，功能和窗口类型 ID 可以沿用），并在 `registerModern(bindings)` 里绑新增或换了内容的窗口、入口权限、摘要和只读恢复；没重新绑的沿用 `register` 里的。协议消息、网络接收器、按键和 tick 回调只在 `register` 里登记一次，两版共用同一份业务状态。
+
+切换时先存下当前版的布局，关掉它开着的窗口（锁和位置保留），再换到另一版；连接不断，模块的业务状态不动。新版锁着的小窗切回来后自动恢复；旧版锁过的整窗和重进游戏时一样，等模块下次打开那个窗口才回到游戏画面。第一次进新版时，旧版锁过的窗口类型各迁成一个锁着的小窗（记在 `modern.migratedPins`，只迁一次），旧版自己的字段不改。
+
+下面两节（小窗、只读恢复）只对新版生效；旧版不读 `ClientBindings.compact` 和 `restore` 的登记。
+
+### 小窗和只读恢复
+
+模块用 `ClientBindings.compact(windowType, provider)` 登记摘要，或用 `compact(windowType, slot, provider)` 同时声明它没被拖动时排在哪一列、列内第几个（`CompactSlot(column, order)`）。`CompactProvider.variants()` 返回有序、非空的样式：`CompactVariant(id, nameKey, width, height)`，`id` 是写进配置的稳定英文 ID，`nameKey` 是右键菜单里显示名的翻译键，尺寸是缩放前的 GUI 像素。`draw(g, state, variant, delta)` 在已经缩放、裁剪的局部坐标绘制，只读当前连接数据。宿主内可拖动透明区域，悬停显示展开、锁、关闭。右键选择样式、缩放和底色，拖过的小窗还有「自动排位」。
+
+持久锁需用 `ClientBindings.restore(featureId, binding)` 登记单例及只读数据源。`readiness()` 检查本连接的玩家、业务通道、数据和权限。`observe(state, status)` 为新请求登记 scope 清理，只在收到匹配请求的首份权威快照后回报 LIVE。手动开窗和自动恢复共用观察；恢复时不创建展开组件，不调用 featureOpened。等待或拒绝时小窗不显示数字。模块可在数据变化时调用 `recheckRestores()`；失败可从功能入口重试。按对象开的窗只能锁在本次连接。
+
+同一窗口形态变化保留 key、scope 和展开矩形。关宿主只解绑定，游戏仅绘制就绪的锁窗摘要；显式关窗撤销固定意图。配置 v2 的 compact 按功能保存 pinned、position、corner、dx、dy、scale、backdropAlpha、variantId。v1 的 pinnedWindows 只在唯一可恢复单例登记后迁移，未消费的类型留给后续加载。
+
+小窗的位置有两种状态。`FLOW`（默认）：框架按各小窗声明的列和顺序，从可用区左上角往下排，到底放不下就在右边另起一列；工作台和游戏画面用同一套排法，只差各自可用区的起点。`PLACED`：玩家拖过之后，只按留下的角和偏距解算，工作台对顶栏以下的可用区、游戏画面对快捷栏以上的安全区各算一次，所以拖到哪个角、离边多远，两处一样。游戏画面里压住准星或原版状态栏的小窗贴到最近的一条边外；右侧不给状态图标预留，图标按小窗的矩形往下让。自动排开的小窗绕开玩家放好的。整个可用区都排不下时退回夹取后的位置，允许重叠。「恢复布局」和右键「自动排位」把位置交还给框架。
+
+验收和其他模块可以用 `ClientRuntime.hudCompacts(width, height)`（游戏画面此刻的小窗：功能、样式、矩形）、`compactBounds(featureId)`（工作台里的矩形）、`pinnedCompacts()` 和 `compactVariant(featureId, variantId)`（换样式）查询和切换，不需要进框架的包。摘要嵌在另一页时，提供者可通过 `CompactProvider.expandedFeature()` 给出展开目标，点开会定位到该功能，原摘要继续保有自己的锁和位置。

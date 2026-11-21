@@ -3,6 +3,7 @@ package dev.kizuna.inventoryui.client;
 import static dev.kizuna.inventoryui.client.WorkspaceMetrics.*;
 
 import dev.kizuna.inventoryui.client.component.ItemDrawing;
+import dev.kizuna.inventoryui.client.status.StatusLayout.Area;
 import dev.kizuna.inventoryui.contract.DefaultUiScreenScope;
 import dev.kizuna.inventoryui.contract.UiViewport;
 import dev.kizuna.inventoryui.hud.HudLayout;
@@ -13,11 +14,13 @@ import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.theme.BuiltinThemes;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 import dev.kizuna.inventoryui.window.UiWindowManager;
+import dev.kizuna.inventoryui.workspace.UiVersion;
 import dev.kizuna.inventoryui.workspace.WorkspaceController;
 import dev.kizuna.inventoryui.workspace.WorkspacePreferences;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,29 +36,30 @@ import net.minecraft.client.gui.screens.Screen;
 
 /** Fabric 客户端的组合根；状态、内容和业务动作由子模组提供。所有调用限定客户端线程。 */
 public final class ClientRuntime {
-    private final FrameworkCatalog catalog;
-    private final WorkspaceController workspace;
+    private final ClassicEdition classic;
+    private final ModernEdition modern;
+    private UiEdition edition;
     private final HudLayout hudLayout;
     private final List<ClientModule> modules;
-    private final Map<String, ClientBindings.WindowFactory> factories = new LinkedHashMap<>();
     private final Map<String, ClientBindings.HudRenderer> renderers = new LinkedHashMap<>();
     private final Map<String, Function<FrameworkCatalog.Slot, ClientBindings.SlotContent>> bars =
             new LinkedHashMap<>();
     private final Map<UiWindowManager.WindowKey, OwoWindowView> views = new LinkedHashMap<>();
-    private final Map<String, Consumer<UiWindowManager.WindowState>> featureOpened = new LinkedHashMap<>();
-    private String theme = BuiltinThemes.INK_JADE.id();
     private String background;
     private boolean motion = true;
-    private final Set<String> pinnedWindows = new LinkedHashSet<>();
+    private boolean blur;
+    private boolean online;
+    private List<Area> hudBlocked = List.of();
     private final InventoryDragSession drag = new InventoryDragSession();
     private final ItemContextMenu contextMenu = new ItemContextMenu();
     private WorkspacePreferences preferences;
     private WorkspacePreferences.Snapshot saved = WorkspacePreferences.Snapshot.empty();
     private String preferenceError = "";
-    private boolean themeChanged;
     private boolean backgroundChanged;
     private final UiProtocolSession protocol;
     private final dev.kizuna.inventoryui.client.svg.SvgRenderer svg;
+    private static final List<String> CORE_BACKGROUNDS = List.of("night_meridian", "scroll_paper", "alchemy_room",
+            "star_meridian", "cosmos", "terrain");
     private Consumer<UiWire.Packet> transport =
             packet -> {
                 throw new IllegalStateException("UI transport is not connected");
@@ -74,11 +78,12 @@ public final class ClientRuntime {
             if (activeLayer != null) {
                 activeLayer.detach();
             }
-            activeLayer = new WindowLayer(this, host, viewport);
+            activeLayer = edition.layer(host, viewport);
             activeHost = host;
         } else {
             activeLayer.viewport(viewport);
         }
+        edition.viewport(viewport);
         return activeLayer;
     }
 
@@ -153,13 +158,16 @@ public final class ClientRuntime {
         try {
             saved = preferences.load();
             motion = saved.motion();
-            pinnedWindows.addAll(saved.pinnedWindows());
-            if (catalog.themes().containsKey(saved.theme())) {
-                theme = saved.theme();
+            blur = saved.blur();
+            classic.load(saved);
+            modern.load(saved);
+            if (java.nio.file.Files.exists(path)) {
+                // 还没有偏好文件时不改当前的界面版本。
+                activate(saved.uiVersion());
             }
             if (java.nio.file.Files.exists(path)
                     && (saved.background() == null
-                            || catalog.backgrounds().containsKey(saved.background()))) {
+                            || catalog().backgrounds().containsKey(saved.background()))) {
                 background = saved.background();
             }
             if (saved.background() != null
@@ -170,15 +178,17 @@ public final class ClientRuntime {
             saved.huds()
                     .forEach(
                             (id, placement) -> {
-                                if (catalog.huds().containsKey(id)) {
+                                if (catalog().huds().containsKey(id)) {
                                     hudLayout.place(id, placement);
                                 }
                             });
             saved.pinnedFeatures()
                     .forEach(
                             id -> {
-                                if (catalog.features().containsKey(id)) {
-                                    workspace.pinFeature(id, true);
+                                for (var each : List.of(classic, modern)) {
+                                    if (each.catalog.features().containsKey(id)) {
+                                        each.workspace.pinFeature(id, true);
+                                    }
                                 }
                             });
         } catch (IOException failure) {
@@ -190,8 +200,8 @@ public final class ClientRuntime {
 
     public void savePreferences() {
         // 保留暂时缺失模块的偏好；已安装模块的固定入口则以用户当前选择为准。
-        var windows = new LinkedHashMap<>(saved.windows());
-        for (var state : workspace.windowBar()) {
+        var windows = new LinkedHashMap<>(edition.savedWindows(saved));
+        for (var state : workspace().windowBar()) {
             // 自动窗口不保存临时小屏尺寸；只有玩家明确调整过的外框才成为固定偏好。
             if (state.automaticBounds()) {
                 windows.remove(state.key().windowType());
@@ -200,31 +210,37 @@ public final class ClientRuntime {
             }
         }
         var huds = new LinkedHashMap<>(saved.huds());
-        catalog.huds().keySet().forEach(id -> huds.put(id, hudLayout.placement(id)));
+        catalog().huds().keySet().forEach(id -> huds.put(id, hudLayout.placement(id)));
         var pins = new LinkedHashSet<>(saved.pinnedFeatures());
-        pins.removeAll(catalog.features().keySet());
-        pins.addAll(workspace.pinnedFeatures());
+        pins.removeAll(catalog().features().keySet());
+        pins.addAll(workspace().pinnedFeatures());
+        // 偏好里的 theme 是旧版界面的主题；新版只有自己的一套，不写进去。
         String themePreference =
-                !themeChanged
+                !classic.themeChanged
                                 && saved.theme() != null
-                                && !catalog.themes().containsKey(saved.theme())
+                                && !classic.catalog.themes().containsKey(saved.theme())
                         ? saved.theme()
-                        : theme;
+                        : classic.theme;
         String backgroundPreference =
                 !backgroundChanged
                                 && saved.background() != null
-                                && !catalog.backgrounds().containsKey(saved.background())
+                                && !catalog().backgrounds().containsKey(saved.background())
                         ? saved.background()
                         : background;
-        saved =
+        var shared =
                 new WorkspacePreferences.Snapshot(
                         themePreference,
                         backgroundPreference,
-                        windows,
+                        saved.windows(),
                         huds,
                         pins,
                         motion,
-                        pinnedWindows);
+                        saved.pinnedWindows(),
+                        edition.version(),
+                        saved.modern(),
+                        blur);
+        // 两版各写各的布局：先带上不在用的那一版原有的字段，再让在用的这一版写入当前窗口。
+        saved = edition.store(inactive().store(shared, inactive().savedWindows(saved)), windows);
         if (preferences != null) {
             try {
                 preferences.save(saved);
@@ -239,54 +255,31 @@ public final class ClientRuntime {
 
     public ClientRuntime(List<ClientModule> modules) {
         // 先构建完整声明目录，再按依赖顺序绑定实现，模块不能依赖调用方的传入顺序。
+        // 两版界面各有一份目录：模块没有另给新版声明时，两版共用同一份声明和同一套绑定。
         this.modules = List.copyOf(modules);
         List<FrameworkCatalog.Module> definitions = new ArrayList<>();
-        definitions.add(
-                FrameworkCatalog.Module.of(
-                        "kiui:core",
-                        Set.of(),
-                        BuiltinThemes.INK_JADE,
-                        BuiltinThemes.XUAN_PAPER,
-                        BuiltinThemes.XUAN_HUANG,
-                        BuiltinThemes.DARK,
-                        BuiltinThemes.LIGHT,
-                        new FrameworkCatalog.Background(
-                                "kiui:night_meridian",
-                                "kizuna_inventory_ui:textures/gui/workspace/night_meridian.png",
-                                FrameworkCatalog.Fit.COVER),
-                        new FrameworkCatalog.Background(
-                                "kiui:scroll_paper",
-                                "kizuna_inventory_ui:textures/gui/workspace/scroll_paper.png",
-                                FrameworkCatalog.Fit.COVER),
-                        new FrameworkCatalog.Background(
-                                "kiui:alchemy_room",
-                                "kizuna_inventory_ui:textures/gui/workspace/alchemy_room.png",
-                                FrameworkCatalog.Fit.COVER),
-                        new FrameworkCatalog.Background(
-                                "kiui:star_meridian",
-                                "kizuna_inventory_ui:textures/gui/workspace/star_meridian.png",
-                                FrameworkCatalog.Fit.COVER),
-                        new FrameworkCatalog.Background(
-                                "kiui:cosmos",
-                                "kizuna_inventory_ui:textures/gui/workspace/cosmos.png",
-                                FrameworkCatalog.Fit.COVER),
-                        new FrameworkCatalog.Background(
-                                "kiui:terrain",
-                                "kizuna_inventory_ui:textures/gui/workspace/terrain.png",
-                                FrameworkCatalog.Fit.COVER)));
-        this.modules.forEach(
-                module -> definitions.add(Objects.requireNonNull(module.definition())));
-        catalog = FrameworkCatalog.build(definitions);
+        List<FrameworkCatalog.Module> modernDefinitions = new ArrayList<>();
+        definitions.add(coreModule(BuiltinThemes.INK_JADE, BuiltinThemes.XUAN_PAPER, BuiltinThemes.XUAN_HUANG,
+                BuiltinThemes.DARK, BuiltinThemes.LIGHT));
+        modernDefinitions.add(coreModule(BuiltinThemes.GLASS));
+        for (var module : this.modules) {
+            var definition = Objects.requireNonNull(module.definition());
+            definitions.add(definition);
+            modernDefinitions.add(module.modernDefinition().orElse(definition));
+        }
+        var catalog = FrameworkCatalog.build(definitions);
+        var modernCatalog = FrameworkCatalog.build(modernDefinitions);
         svg = new dev.kizuna.inventoryui.client.svg.SvgRenderer(catalog);
-        workspace =
-                new WorkspaceController(
-                        catalog, UiViewport.MIN_SUPPORTED_WIDTH, UiViewport.MIN_SUPPORTED_HEIGHT);
+        classic = new ClassicEdition(this, catalog, newWorkspace(catalog));
+        modern = new ModernEdition(this, modernCatalog, newWorkspace(modernCatalog));
+        edition = edition(UiVersion.DEFAULT);
         hudLayout = new HudLayout(catalog);
         Map<String, ClientModule> byId = new LinkedHashMap<>();
         var messages = new ArrayList<UiWire.Contract<?>>();
         for (int i = 0; i < this.modules.size(); i++) {
             byId.put(definitions.get(i + 1).id(), this.modules.get(i));
         }
+        Map<String, ClientBindings> bound = new LinkedHashMap<>();
         for (String id : catalog.moduleOrder()) {
             ClientModule module = byId.get(id);
             if (module == null) {
@@ -296,19 +289,33 @@ public final class ClientRuntime {
             module.register(bindings);
             // 缺失实现会在发布绑定前失败，避免界面打开后才遇到空绘制器。
             bindings.freeze();
-            bindings.featureAccess.forEach(workspace::featureAccess);
+            publish(classic, bindings);
             messages.addAll(bindings.messages);
-            factories.putAll(bindings.windows);
-            featureOpened.putAll(bindings.featureOpened);
-            renderers.putAll(bindings.huds);
-            bars.putAll(bindings.bars);
-            bindings.slotBarHuds.forEach(
-                    (hud, bar) ->
-                            renderers.put(
-                                    hud,
-                                    (context, width, height, delta) ->
-                                            renderSlotBar(context, bar, width, height)));
+            bound.put(id, bindings);
         }
+        for (String id : modernCatalog.moduleOrder()) {
+            ClientModule module = byId.get(id);
+            if (module == null) {
+                continue;
+            }
+            var bindings = bound.get(id);
+            if (module.modernDefinition().isPresent()) {
+                var classicBindings = bindings;
+                bindings = new ClientBindings(modernCatalog.modules().get(id));
+                module.registerModern(bindings);
+                bindings.inherit(classicBindings);
+                bindings.freeze();
+                if (!bindings.messages.isEmpty()) {
+                    // 协议消息两版共用，只在 register 里登记一次。
+                    throw new IllegalArgumentException("modern bindings must not declare messages: " + id);
+                }
+            }
+            publish(modern, bindings);
+            modern.compact.providers.putAll(bindings.summaries);
+            modern.compact.slots.putAll(bindings.summarySlots);
+            modern.compact.bindings.putAll(bindings.observers);
+        }
+        modern.compact.validate();
         protocol =
                 new UiProtocolSession(
                         catalog,
@@ -321,12 +328,145 @@ public final class ClientRuntime {
                         });
     }
 
+    private static FrameworkCatalog.Module coreModule(FrameworkCatalog.Theme... themes) {
+        var entries = new ArrayList<FrameworkCatalog.Entry>(List.of(themes));
+        for (String background : CORE_BACKGROUNDS) {
+            entries.add(new FrameworkCatalog.Background(
+                    "kiui:" + background,
+                    "kizuna_inventory_ui:textures/gui/workspace/" + background + ".png",
+                    FrameworkCatalog.Fit.COVER));
+        }
+        return FrameworkCatalog.Module.of("kiui:core", Set.of(), entries.toArray(FrameworkCatalog.Entry[]::new));
+    }
+
+    private static WorkspaceController newWorkspace(FrameworkCatalog catalog) {
+        return new WorkspaceController(catalog, UiViewport.MIN_SUPPORTED_WIDTH, UiViewport.MIN_SUPPORTED_HEIGHT);
+    }
+
+    private void publish(UiEdition target, ClientBindings bindings) {
+        // 窗口工厂、入口权限和入口动作按版本分开；独立 HUD 和槽位栏不分版本。
+        bindings.featureAccess.forEach(target.workspace::featureAccess);
+        target.factories.putAll(bindings.windows);
+        target.featureOpened.putAll(bindings.featureOpened);
+        renderers.putAll(bindings.huds);
+        bars.putAll(bindings.bars);
+        bindings.slotBarHuds.forEach(
+                (hud, bar) ->
+                        renderers.put(
+                                hud,
+                                (context, width, height, delta) ->
+                                        renderSlotBar(context, bar, width, height)));
+    }
+
+    private UiEdition edition(UiVersion version) {
+        return switch (version) {
+            case CLASSIC -> classic;
+            case MODERN -> modern;
+        };
+    }
+
+    private UiEdition inactive() {
+        if (edition == classic) {
+            return modern;
+        }
+        return classic;
+    }
+
+    /** 新版界面的表现；小窗的登记和排位都在它下面。 */
+    ModernEdition modern() {
+        return modern;
+    }
+
+    public UiVersion uiVersion() {
+        return edition.version();
+    }
+
+    /**
+     * 切到另一版界面。当前版的布局先存下，它开着的窗口全部关闭（锁和位置保留），再换成目标版自己的目录、
+     * 窗口模型和主题；连接和模块的业务状态不动。整屏界面开着时换成目标版的整屏界面。
+     */
+    public void uiVersion(UiVersion target) {
+        if (target == edition.version()) {
+            return;
+        }
+        boolean workspaceOpen = activeHost != null && edition.ownsScreen(activeHost);
+        savePreferences();
+        if (activeLayer != null) {
+            activeLayer.detach();
+        }
+        cancelInput();
+        activate(target);
+        if (online) {
+            edition.viewport(gameViewport());
+            edition.connected();
+        }
+        savePreferences();
+        if (workspaceOpen) {
+            Minecraft.getInstance().gui.setScreen(edition.workspaceScreen());
+        }
+    }
+
+    private void closeWindows() {
+        edition.released();
+        for (var state : List.copyOf(workspace().windowBar())) {
+            workspace().windows().close(state.key());
+        }
+    }
+
+    private void activate(UiVersion version) {
+        if (edition.version() != version) {
+            closeWindows();
+            edition = edition(version);
+        }
+    }
+
+    /** 这块屏幕是不是某一版自己的整屏界面。 */
+    boolean ownsWorkspace(Screen screen) {
+        return classic.ownsScreen(screen) || modern.ownsScreen(screen);
+    }
+
+    /** 当前版标题栏的高度；窗口内容区从它下面开始。 */
+    int headerHeight() {
+        return edition.headerHeight();
+    }
+
+    public boolean blur() {
+        return blur;
+    }
+
+    public void blur(boolean enabled) {
+        blur = enabled;
+        savePreferences();
+    }
+
+    /**
+     * 模块发现连接断开时先调用：之后模块自己关窗不算玩家撤销，新版锁着的小窗留到下次登录恢复。
+     * 运行时自己的断线清理也会做同一件事，重复调用无妨。
+     */
+    public void connectionClosing() {
+        edition.released();
+    }
+
+    /** 模块在数据或权限变化后调用，让等着的只读恢复重新检查。 */
+    public void recheckRestores() {
+        edition.tick(System.nanoTime());
+    }
+
+    public boolean restoreRetryable(String feature) {
+        return modern.compact.retryable(feature);
+    }
+
+    public void retryRestore(String feature) {
+        modern.compact.retry(feature);
+        recheckRestores();
+    }
+
     public FrameworkCatalog catalog() {
-        return catalog;
+        return edition.catalog;
     }
 
     public WorkspaceController workspace() {
-        return workspace;
+        return edition.workspace;
     }
 
     public HudLayout hudLayout() {
@@ -334,7 +474,7 @@ public final class ClientRuntime {
     }
 
     public String theme() {
-        return theme;
+        return edition.theme;
     }
 
     public boolean motion() {
@@ -348,13 +488,8 @@ public final class ClientRuntime {
 
     public boolean pinWindow(UiWindowManager.WindowKey key, boolean pinned) {
         // 保存窗口类型的显示偏好，不持久化服务器对象或跨连接窗口实例。
-        if (!workspace.windows().pin(key, pinned)) {
+        if (!edition.pin(key, pinned)) {
             return false;
-        }
-        if (pinned) {
-            pinnedWindows.add(key.windowType());
-        } else {
-            pinnedWindows.remove(key.windowType());
         }
         savePreferences();
         return true;
@@ -366,11 +501,11 @@ public final class ClientRuntime {
 
     public void theme(String id) {
         // 只切换到已登记主题，拼写错误应在调用处暴露而非静默忽略。
-        if (!catalog.themes().containsKey(id)) {
+        if (!catalog().themes().containsKey(id)) {
             throw new IllegalArgumentException("unknown theme: " + id);
         }
-        theme = id;
-        themeChanged = true;
+        edition.theme = id;
+        edition.themeChanged = true;
     }
 
     /** null 表示使用主题底色。 */
@@ -383,7 +518,7 @@ public final class ClientRuntime {
                                 ? "local background directory is not configured"
                                 : localBackgrounds.error());
             }
-        } else if (id != null && !catalog.backgrounds().containsKey(id)) {
+        } else if (id != null && !catalog().backgrounds().containsKey(id)) {
             throw new IllegalArgumentException("unknown background: " + id);
         }
         background = id;
@@ -409,7 +544,7 @@ public final class ClientRuntime {
             localBackgrounds.render(context, width, height);
         } else {
             WorkspaceBackground.render(
-                    context, catalog.backgrounds().get(background), width, height);
+                    context, catalog().backgrounds().get(background), width, height);
         }
     }
 
@@ -427,41 +562,52 @@ public final class ClientRuntime {
 
     public int color(String token) {
         // 自定义主题可以只覆盖部分令牌，缺项逐级回退到内置深色主题与白色。
-        return BuiltinThemes.color(catalog.themes().get(theme), token);
+        return BuiltinThemes.color(catalog().themes().get(edition.theme), token);
     }
 
     int bottomBarHeight() {
         // 只有最小化窗口需要底部恢复入口；已展开窗口和注册槽位不占这块空间。
         boolean hasMinimized =
-                workspace.windowBar().stream().anyMatch(UiWindowManager.WindowState::minimized);
+                workspace().windowBar().stream().anyMatch(UiWindowManager.WindowState::minimized);
         return hasMinimized ? MINIMIZED_BAR_HEIGHT : 0;
     }
 
     public UiWindowManager.WindowState open(String feature, String objectId) {
         // 为已有最小化窗口留位；新窗口展开显示，不再创建额外的底部页签。
         var client = Minecraft.getInstance();
-        if (!catalog.features().containsKey(feature)) {
+        if (!catalog().features().containsKey(feature)) {
             throw new IllegalArgumentException("unknown feature: " + feature);
         }
         var binding = layer(client.gui.screen());
         if (binding.isEmpty()) {
-            workspace.windows().resizeViewport(client.getWindow().getGuiScaledWidth(),
-                    Math.max(1, client.getWindow().getGuiScaledHeight() - bottomBarHeight()));
+            workspace().windows().resizeViewport(client.getWindow().getGuiScaledWidth(),
+                    Math.max(1, client.getWindow().getGuiScaledHeight() - edition.reservedBottom()));
         }
         var state =
-                workspace.openFeature(
+                workspace().openFeature(
                         feature,
                         objectId,
-                        saved.windows()
-                                .get(catalog.features().get(feature).windowType()));
+                        edition.savedWindows(saved)
+                                .get(catalog().features().get(feature).windowType()));
+        if (!edition.opened(feature, state)) {
+            return state;
+        }
+        ensureView(state);
+        var opened = edition.featureOpened.get(feature);
+        if (opened != null) {
+            opened.accept(state);
+        }
+        layer(client.gui.screen()).ifPresent(layer -> layer.focus(state.key()));
+        return state;
+    }
+
+    void ensureView(UiWindowManager.WindowState state) {
         if (!views.containsKey(state.key())) {
             // 一个窗口实例只创建一棵组件树；关窗时由同一个 scope 释放视图和订阅。
             try {
-                var view = new OwoWindowView(this, state, factories.get(state.key().windowType()));
+                var view = new OwoWindowView(this, state, edition.factories.get(state.key().windowType()));
                 views.put(state.key(), view);
-                workspace
-                        .windows()
-                        .pin(state.key(), pinnedWindows.contains(state.key().windowType()));
+                edition.viewCreated(state);
                 state.scope()
                         .addCleanup(
                                 () -> {
@@ -471,16 +617,10 @@ public final class ClientRuntime {
                                 });
             } catch (RuntimeException | Error failure) {
                 // 组件构建失败时撤销刚打开的窗口，避免留下无法渲染的空壳。
-                workspace.windows().close(state.key());
+                workspace().windows().close(state.key());
                 throw failure;
             }
         }
-        var opened = featureOpened.get(feature);
-        if (opened != null) {
-            opened.accept(state);
-        }
-        layer(client.gui.screen()).ifPresent(layer -> layer.focus(state.key()));
-        return state;
     }
 
     public void openWorkspace() {
@@ -488,29 +628,22 @@ public final class ClientRuntime {
         if (layer(Minecraft.getInstance().gui.screen()).isPresent()) {
             return;
         }
-        Minecraft.getInstance().gui.setScreen(new WorkspaceScreen(this));
+        Minecraft.getInstance().gui.setScreen(edition.workspaceScreen());
     }
 
     public void resetWindowLayout() {
         // 重置表现布局保留窗口与业务订阅，所有已保存的窗口类型尺寸也一并回到默认。
-        saved =
-                new WorkspacePreferences.Snapshot(
-                        saved.theme(),
-                        saved.background(),
-                        Map.of(),
-                        saved.huds(),
-                        saved.pinnedFeatures(),
-                        motion,
-                        pinnedWindows);
-        for (var window : workspace.windowBar()) {
-            workspace.windows().restorePreferredBounds(window.key());
+        saved = edition.store(saved, Map.of());
+        edition.resetLayout();
+        for (var window : workspace().windowBar()) {
+            workspace().windows().restorePreferredBounds(window.key());
         }
         savePreferences();
     }
 
     public String title(UiWindowManager.WindowState state) {
         // 优先使用关联功能的展示名称，没有入口时使用稳定类型 ID 便于排查。
-        return catalog.features().values().stream()
+        return catalog().features().values().stream()
                 .filter(feature -> feature.windowType().equals(state.key().windowType()))
                 .map(FrameworkCatalog.Feature::title)
                 .findFirst()
@@ -523,7 +656,7 @@ public final class ClientRuntime {
 
     void cancelInput() {
         // 窗口拖动和组件内部拖动分别持有状态，两层都要取消。
-        workspace.windows().cancelCapture();
+        workspace().windows().cancelCapture();
         drag.cancel();
         contextMenu.close();
         views.values().forEach(OwoWindowView::cancelInput);
@@ -536,7 +669,7 @@ public final class ClientRuntime {
 
     public ClientBindings.SlotContent slotContent(String barId, FrameworkCatalog.Slot slot) {
         // 先确认槽位属于目标栏，再向模块索取当前内容，防止跨栏错误绑定。
-        var bar = catalog.slotBars().get(barId);
+        var bar = catalog().slotBars().get(barId);
         if (bar == null || !bar.slots().contains(slot)) {
             throw new IllegalArgumentException("unknown slot binding: " + barId);
         }
@@ -551,48 +684,15 @@ public final class ClientRuntime {
             int mouseX,
             int mouseY,
             float delta) {
-        // 外框和内容共用窗口生命周期；HUD 路径隐藏按钮，并禁用悬停输入。
-        // 每个窗口独占一个绘制层，后绘制的窗口整体压在先前窗口及其 tooltip 之上。
-        context.nextStratum();
-        WindowChrome.render(context, this, state, bounds, controls, mouseX, mouseY);
-        var view = views.get(state.key());
-        if (view != null && bounds.height() > WINDOW_HEADER_HEIGHT + WINDOW_BORDER) {
-            view.render(context, bounds, mouseX, mouseY, delta);
-        }
-        if (controls) {
-            // 角标与拖动命中使用同一尺寸，内容铺满时仍明确展示缩放入口。
-            context.text(
-                    Minecraft.getInstance().font,
-                    "◢",
-                    bounds.x() + bounds.width() - RESIZE_GRIP_SIZE,
-                    bounds.y() + bounds.height() - RESIZE_GRIP_SIZE,
-                    color(ThemeTokens.ACCENT),
-                    false);
-        }
+        edition.renderWindow(context, state, bounds, controls, mouseX, mouseY, delta);
     }
 
     public void renderHuds(GuiGraphicsExtractor context, int width, int height, float delta) {
-        // 工作台已经绘制窗口；普通游戏 HUD 才渲染固定实例，不创建第二棵组件树。
-        if (layer(Minecraft.getInstance().gui.screen()).isEmpty()) {
-            for (var state : workspace.windowBar()) {
-                if (state.hudVisible()) {
-                    var source = state.bounds();
-                    int w = Math.min(width, source.width());
-                    int h = Math.min(height, source.height());
-                    var bounds =
-                            new UiWindowManager.Rect(
-                                    Math.max(0, Math.min(source.x(), width - w)),
-                                    Math.max(0, Math.min(source.y(), height - h)),
-                                    w,
-                                    h);
-                    renderWindow(context, state, bounds, false, -1, -1, delta);
-                }
-            }
-        }
+        edition.renderHudWindows(context, width, height, delta);
         // 固定窗口之后另起一层，独立 HUD 整体压在窗口之上。
         context.nextStratum();
         // 每个 HUD 使用独立变换和裁剪，模块只需要在自己的逻辑坐标内绘制。
-        for (var hud : catalog.huds().values()) {
+        for (var hud : catalog().huds().values()) {
             if (!hudLayout.placement(hud.id()).visible()) {
                 continue;
             }
@@ -619,7 +719,7 @@ public final class ClientRuntime {
 
     public void renderSlotBar(GuiGraphicsExtractor context, String barId, int width, int height) {
         // 用注册数量分配格宽；HUD 和工作台读取同一供应器，绑定变化会同时显示。
-        var bar = catalog.slotBars().get(barId);
+        var bar = catalog().slotBars().get(barId);
         if (bar == null) {
             throw new IllegalArgumentException("unknown slot bar: " + barId);
         }
@@ -656,11 +756,67 @@ public final class ClientRuntime {
         }
     }
 
+    void beginHudFrame(int width, int height) {
+        hudBlocked = edition.beginHudFrame(width, height).stream()
+                .map(bounds -> new Area(bounds.x(), bounds.y(), bounds.width(), bounds.height()))
+                .toList();
+    }
+
+    List<Area> hudBlockedAreas() {
+        return hudBlocked;
+    }
+
+    /** 游戏画面此刻可画的小窗；旧版界面、没有玩家、开着界面或隐藏 HUD 时为空。 */
+    public List<CompactView> hudCompacts(int width, int height) {
+        if (edition != modern) {
+            return List.of();
+        }
+        return modern.hudProjections(width, height).stream()
+                .map(projection -> new CompactView(projection.feature(), projection.variant(), projection.bounds()))
+                .toList();
+    }
+
+    /** 新版工作台里某功能收小后的屏幕矩形；没收小或没有活动宿主时为空。 */
+    public Optional<UiWindowManager.Rect> compactBounds(String feature) {
+        if (activeLayer instanceof ModernWindowLayer layer) {
+            return layer.compactBounds(feature);
+        }
+        return Optional.empty();
+    }
+
+    /** 新版里已锁到游戏画面的小窗所属功能。 */
+    public Set<String> pinnedCompacts() {
+        var pinned = new LinkedHashSet<String>();
+        modern.compact.placements.forEach((feature, placement) -> {
+            if (placement.pinned()) {
+                pinned.add(feature);
+            }
+        });
+        return Collections.unmodifiableSet(pinned);
+    }
+
+    /** 切换某功能小窗的样式；未登记的样式在绘制时回退到首项。 */
+    public void compactVariant(String feature, String variantId) {
+        modern.compact.variant(feature, variantId);
+        savePreferences();
+    }
+
     void connected() {
+        online = true;
+        edition.viewport(gameViewport());
+        edition.connected();
         modules.forEach(module -> module.connected(this));
     }
 
+    private static UiWindowManager.Rect gameViewport() {
+        var window = Minecraft.getInstance().getWindow();
+        return new UiWindowManager.Rect(0, 0, window.getGuiScaledWidth(), window.getGuiScaledHeight());
+    }
+
     void disconnected() {
+        online = false;
+        hudBlocked = List.of();
+        edition.released();
         if (activeLayer != null) {
             activeLayer.detach();
         } else {
@@ -670,7 +826,8 @@ public final class ClientRuntime {
         protocol.disconnect();
         // scope 按后进先出清理：先通知模块断线，再清除工作台；某项失败不跳过其余清理。
         var cleanup = new DefaultUiScreenScope();
-        cleanup.addCleanup(workspace::disconnect);
+        cleanup.addCleanup(inactive().workspace::disconnect);
+        cleanup.addCleanup(edition.workspace::disconnect);
         modules.forEach(module -> cleanup.addCleanup(() -> module.disconnected(this)));
         cleanup.close();
     }

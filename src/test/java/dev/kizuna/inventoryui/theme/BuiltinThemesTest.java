@@ -48,6 +48,7 @@ class BuiltinThemesTest {
         }
         var themes =
                 List.of(
+                        BuiltinThemes.GLASS,
                         BuiltinThemes.INK_JADE,
                         BuiltinThemes.XUAN_PAPER,
                         BuiltinThemes.XUAN_HUANG,

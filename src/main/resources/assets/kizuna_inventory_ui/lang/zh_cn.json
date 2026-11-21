@@ -1,4 +1,10 @@
 {
+  "kizuna_inventory_ui.compact.flow": "自动排位",
+  "kizuna_inventory_ui.compact.scale": "缩放 %s%%",
+  "kizuna_inventory_ui.compact.backdrop": "底色 %s%%",
+  "kizuna_inventory_ui.version.classic": "已切换到旧版界面",
+  "kizuna_inventory_ui.version.modern": "已切换到新版界面",
+  "kizuna_inventory_ui.compact.retry": "（重试）",
   "key.kizuna_inventory_ui.workspace": "打开库存工作台",
   "key.category.kizuna_inventory_ui.general": "库存 UI 框架",
   "key.kizuna_inventory_ui.status_peek": "展开合并的状态效果（按住）",

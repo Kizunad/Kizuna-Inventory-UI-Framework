@@ -3,6 +3,8 @@ package dev.kizuna.inventoryui.demo;
 import dev.kizuna.inventoryui.client.ClientBindings;
 import dev.kizuna.inventoryui.client.ClientModule;
 import dev.kizuna.inventoryui.client.ClientRuntime;
+import dev.kizuna.inventoryui.client.CompactProvider;
+import dev.kizuna.inventoryui.client.CompactVariant;
 import dev.kizuna.inventoryui.client.InventoryUiClient;
 import dev.kizuna.inventoryui.client.component.EffectStripComponent;
 import dev.kizuna.inventoryui.client.component.InventoryGridComponent;
@@ -18,6 +20,7 @@ import dev.kizuna.inventoryui.inventory.ItemAction;
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 import dev.kizuna.inventoryui.window.UiWindowDefinition;
+import dev.kizuna.inventoryui.window.UiWindowManager;
 
 import io.wispforest.owo.ui.component.UIComponents;
 import io.wispforest.owo.ui.container.UIContainers;
@@ -25,6 +28,7 @@ import io.wispforest.owo.ui.core.Sizing;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.BlockModelResolver;
@@ -166,6 +170,8 @@ public final class DemoModule implements ClientModule {
     @Override
     public void register(ClientBindings bindings) {
         // 窗口和 HUD 都读取同一 state；窗口订阅必须随窗口关闭释放。
+        // 新版界面里共享状态窗口可以收成一行摘要；旧版不读这项登记。
+        bindings.compact("demo:status_window", new StatusSummary());
         bindings.window(
                 "demo:inventory_window",
                 (runtime, window) -> {
@@ -499,5 +505,23 @@ public final class DemoModule implements ClientModule {
         rejectNext = false;
         boundItems.clear();
         lastResult = "连接已清理";
+    }
+
+    /** 共享状态窗口的小窗摘要：和展开窗同一行状态文字。 */
+    private final class StatusSummary implements CompactProvider {
+        private static final int WIDTH = 132;
+        private static final int HEIGHT = 10;
+
+        @Override
+        public List<CompactVariant> variants() {
+            return List.of(new CompactVariant("line", "kiui_demo.compact.line", WIDTH, HEIGHT));
+        }
+
+        @Override
+        public void draw(GuiGraphicsExtractor graphics, UiWindowManager.WindowState window, String variant,
+                float delta) {
+            int color = InventoryUiClient.runtime().color(ThemeTokens.TEXT);
+            graphics.text(Minecraft.getInstance().font, status(), 0, 1, color, true /* shadow */);
+        }
     }
 }

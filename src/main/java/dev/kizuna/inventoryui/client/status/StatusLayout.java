@@ -30,6 +30,10 @@ public final class StatusLayout {
     public static final int TOP_MARGIN_PIXELS = 1;
     /** 底边留给快捷栏的高度。 */
     public static final int BOTTOM_RESERVE_PIXELS = 24;
+    /** 原版生命、饥饿、护甲、经验和氧气状态栏的宽度。 */
+    public static final int VANILLA_STATUS_BAR_WIDTH_PIXELS = 182;
+    /** 原版状态栏自快捷栏上方起向上覆盖的高度。 */
+    public static final int VANILLA_STATUS_BAR_HEIGHT_PIXELS = 44;
     /** 格位和界面占位之间至少留的空隙。 */
     public static final int CLEARANCE_PIXELS = 2;
 
@@ -72,7 +76,18 @@ public final class StatusLayout {
 
     /** 游戏画面里的格位，按填充顺序排列。 */
     public static List<Area> hudCells(int guiWidth, int guiHeight) {
-        return cells(guiWidth, guiHeight, HUD_COLUMNS, List.of());
+        return hudCells(guiWidth, guiHeight, List.of());
+    }
+
+    public static List<Area> hudCells(int guiWidth, int guiHeight, List<Area> blocked) {
+        return cells(guiWidth, guiHeight, HUD_COLUMNS, blocked);
+    }
+
+    /** 原版生命、饥饿、护甲、经验条和氧气显示占用的 HUD 区域。 */
+    public static Area vanillaStatusBarArea(int guiWidth, int guiHeight) {
+        int left = (guiWidth - VANILLA_STATUS_BAR_WIDTH_PIXELS) / 2;
+        int top = guiHeight - BOTTOM_RESERVE_PIXELS - VANILLA_STATUS_BAR_HEIGHT_PIXELS;
+        return new Area(left, top, VANILLA_STATUS_BAR_WIDTH_PIXELS, VANILLA_STATUS_BAR_HEIGHT_PIXELS);
     }
 
     /**

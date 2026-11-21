@@ -2,8 +2,10 @@ package dev.kizuna.inventoryui.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.kizuna.inventoryui.client.component.ModelPreviewRenderer;
+import dev.kizuna.inventoryui.client.status.StatusBlockers;
 import dev.kizuna.inventoryui.client.status.StatusIcons;
 import dev.kizuna.inventoryui.status.StatusGroups;
+import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -50,7 +52,7 @@ public final class InventoryUiClient implements ClientModInitializer {
     private void closeWorkspace(Minecraft client) {
         // 先释放连接身份，晚到的旧回调不能重复清理或关掉下一次连接的窗口。
         workspaceConnection = null;
-        if (client.gui.screen() instanceof WorkspaceScreen) {
+        if (runtime.ownsWorkspace(client.gui.screen())) {
             client.gui.setScreen(null);
         }
         runtime.disconnected();
@@ -102,6 +104,11 @@ public final class InventoryUiClient implements ClientModInitializer {
                                 GLFW.GLFW_KEY_I,
                                 keyCategory));
         StatusIcons.register(keyCategory);
+        UiVersionCommand.register(runtime);
+        StatusBlockers.register(screen -> runtime.layer(screen).map(WindowLayer::blockedAreas).orElseGet(List::of));
+        StatusBlockers.registerHud((guiWidth, guiHeight) -> runtime.hudBlockedAreas());
+        HudElementRegistry.addFirst(Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "compact_layout"),
+                (graphics, delta) -> runtime.beginHudFrame(graphics.guiWidth(), graphics.guiHeight()));
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             // Fabric 的逐屏事件在 init 时重新建立，同帧的宿主与窗口共用动画时刻。
             ScreenEvents.beforeExtract(screen).register((host, graphics, x, y, delta) ->
@@ -117,6 +124,9 @@ public final class InventoryUiClient implements ClientModInitializer {
                         }
                     }
                     runtime.updateHost(client);
+                    if (client.player != null) {
+                        runtime.recheckRestores();
+                    }
                     runtime.workspace().windows().tick(System.currentTimeMillis());
                     runtime.protocol().tick(System.currentTimeMillis());
                 });

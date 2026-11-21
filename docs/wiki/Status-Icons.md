@@ -61,3 +61,5 @@ StatusBlockers.register(screen -> screen instanceof MyScreen mine ? mine.floatin
 - 图标的位置、列数、底边留白是固定的，没有配置项，也不能拖动。
 - 合并和展开之间没有防抖：效果数量在上限附近来回变时，图标会在合并和不合并之间切换。
 - 不是容器界面的界面没有「让开」，图标照旧画在它们底下。
+
+游戏画面额外占位通过 `StatusBlockers.registerHud((width, height) -> areas)` 登记。透明小窗使用同一帧的实际外框，图标和时间文字按两列规则跳过遮挡。宿主窗口沿用 `StatusBlockers.register(Source)`。

@@ -8,12 +8,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /** 窗口 identity、z-order、输入捕获和 viewport 约束的唯一实现。 */
 public final class UiWindowManager {
     private static final int AUTOMATIC_MARGIN = 8;
     private static final int AUTOMATIC_TOP = 38;
-    private final Map<WindowKey, WindowState> windows = new LinkedHashMap<>();
+    private final LinkedHashMap<WindowKey, WindowState> windows = new LinkedHashMap<>();
+    private Predicate<String> minimizable = windowType -> true;
     private WindowKey capturedKey;
     private double captureOffsetX;
     private double captureOffsetY;
@@ -56,6 +58,22 @@ public final class UiWindowManager {
         created.bounds(clamp(created.desiredBounds, definition));
         windows.put(key, created);
         focus(key);
+        return created;
+    }
+
+    /** 只让给定类型的窗口收小；不调用时所有可编辑窗口都能收小。 */
+    public synchronized void restrictMinimize(Predicate<String> windowTypes) {
+        minimizable = Objects.requireNonNull(windowTypes, "windowTypes must not be null");
+    }
+
+    public synchronized WindowState openBehind(UiWindowDefinition definition, WindowKey key, Rect initialBounds) {
+        // 后台恢复放在绘制序底部；已存在时不改形态和层序。
+        var existing = windows.get(key);
+        if (existing != null) {
+            return existing;
+        }
+        var created = openOrFocus(definition, key, initialBounds);
+        windows.putFirst(key, created);
         return created;
     }
 
@@ -170,7 +188,7 @@ public final class UiWindowManager {
     public synchronized boolean minimize(WindowKey key) {
         // 最小化保留实例和订阅，但必须释放鼠标捕获。
         WindowState state = windows.get(key);
-        if (!editable(state)) {
+        if (!editable(state) || !minimizable.test(key.windowType())) {
             return false;
         }
         state.minimized = true;

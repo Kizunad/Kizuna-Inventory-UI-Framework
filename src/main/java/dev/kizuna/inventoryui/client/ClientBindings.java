@@ -29,6 +29,29 @@ public final class ClientBindings {
     final Map<String, java.util.function.BooleanSupplier> featureAccess = new LinkedHashMap<>();
     final Map<String, Consumer<UiWindowManager.WindowState>> featureOpened = new LinkedHashMap<>();
 
+    final Map<String, CompactProvider> summaries = new LinkedHashMap<>();
+    final Map<String, CompactSlot> summarySlots = new LinkedHashMap<>();
+    final Map<String, RestoreBinding> observers = new LinkedHashMap<>();
+
+    public void compact(String windowType, CompactProvider provider) {
+        compact(windowType, CompactSlot.UNORDERED, provider);
+    }
+
+    /** 登记摘要并声明它没被拖动时排在哪一列、列内第几个。 */
+    public void compact(String windowType, CompactSlot slot, CompactProvider provider) {
+        // 同一稳定 ID 只对应一个尺寸，首项用于初始样式和旧样式回退。
+        var variants = List.copyOf(provider.variants());
+        if (variants.isEmpty() || variants.stream().map(CompactVariant::id).distinct().count() != variants.size()) {
+            throw new IllegalArgumentException("empty or duplicate compact variants: " + windowType);
+        }
+        add(windowType, FrameworkCatalog.Window.class, summaries, provider);
+        summarySlots.put(windowType, Objects.requireNonNull(slot));
+    }
+
+    public void restore(String featureId, RestoreBinding binding) {
+        add(featureId, FrameworkCatalog.Feature.class, observers, binding);
+    }
+
     public void featureOpened(String featureId, Consumer<UiWindowManager.WindowState> action) {
         // 多个入口可以共享一个窗口；每次打开或聚焦后由入口选择对应内容。
         add(featureId, FrameworkCatalog.Feature.class, featureOpened, action);
@@ -91,6 +114,26 @@ public final class ClientBindings {
         }
         if (target.putIfAbsent(id, Objects.requireNonNull(value)) != null) {
             throw new IllegalArgumentException("duplicate binding: " + id);
+        }
+    }
+
+    /** 新版没有另外绑定的窗口工厂、入口权限、入口动作和绘制器，沿用同一模块在旧版里绑的。 */
+    void inherit(ClientBindings classic) {
+        for (var entry : module.entries()) {
+            String id = entry.id();
+            inherit(classic.windows, windows, id);
+            inherit(classic.featureAccess, featureAccess, id);
+            inherit(classic.featureOpened, featureOpened, id);
+            inherit(classic.huds, huds, id);
+            inherit(classic.slotBarHuds, slotBarHuds, id);
+            inherit(classic.bars, bars, id);
+        }
+    }
+
+    private static <T> void inherit(Map<String, T> classic, Map<String, T> own, String id) {
+        T bound = classic.get(id);
+        if (bound != null) {
+            own.putIfAbsent(id, bound);
         }
     }
 

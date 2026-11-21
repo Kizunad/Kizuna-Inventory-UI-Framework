@@ -2,6 +2,17 @@ package dev.kizuna.inventoryui.theme;
 
 /** 框架绘制使用的稳定颜色令牌；主题按令牌覆盖 ARGB 值，不依赖具体组件实现。 */
 public final class ThemeTokens {
+    /** 展开窗面板上下两端的底色；主题没写时取 PANEL 和 PANEL_BOTTOM。 */
+    public static final String EXPANDED_PANEL_TOP = "expanded.panelTop";
+
+    public static final String EXPANDED_PANEL_BOTTOM = "expanded.panelBottom";
+
+    /** 展开窗背后的模糊半径，单位 GUI 像素，不是颜色；0 或没写即不模糊。 */
+    public static final String EXPANDED_BLUR_RADIUS = "expanded.blurRadius";
+
+    /** 小窗底色的 RGB；不透明度由每个小窗自己的偏好决定。 */
+    public static final String COMPACT_BACKDROP = "compact.backdrop";
+
     public static final String BACKGROUND = "background";
     public static final String PANEL = "panel";
     public static final String HEADER = "header";
@@ -39,6 +50,10 @@ public final class ThemeTokens {
     public static final String HEADER_RULE = "header.rule";
     public static final String HEADER_ACCENT = "header.accent";
     public static final String SHADOW = "shadow";
+
+    /** 紧贴窗口下沿的一条平投影；没写即不画。 */
+    public static final String SHADOW_DROP = "shadow.drop";
+
     public static final String CONTROL = "control";
     public static final String CONTROL_HOVER = "control.hover";
     public static final String CONTROL_CLOSE_HOVER = "control.closeHover";

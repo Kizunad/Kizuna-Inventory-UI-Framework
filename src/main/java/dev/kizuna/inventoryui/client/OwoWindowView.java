@@ -18,6 +18,7 @@ final class OwoWindowView implements AutoCloseable {
     final OwoUIAdapter<FlowLayout> adapter;
     private UiWindowManager.Rect previous;
     private final UIComponent content;
+    private final int headerHeight;
 
     OwoWindowView(
             ClientRuntime runtime,
@@ -25,12 +26,13 @@ final class OwoWindowView implements AutoCloseable {
             ClientBindings.WindowFactory factory) {
         // 标题栏由工作台绘制，owo 子树只占用窗口内容区并采用局部坐标。
         var bounds = state.bounds();
+        headerHeight = runtime.headerHeight();
         adapter =
                 OwoUIAdapter.createWithoutScreen(
                         bounds.x() + WINDOW_BORDER,
-                        bounds.y() + WINDOW_HEADER_HEIGHT,
+                        bounds.y() + headerHeight,
                         Math.max(1, bounds.width() - 2 * WINDOW_BORDER),
-                        Math.max(1, bounds.height() - WINDOW_HEADER_HEIGHT - WINDOW_BORDER),
+                        Math.max(1, bounds.height() - headerHeight - WINDOW_BORDER),
                         UIContainers::verticalFlow);
         try {
             adapter.rootComponent.allowOverflow(false);
@@ -50,9 +52,9 @@ final class OwoWindowView implements AutoCloseable {
         if (!bounds.equals(previous)) {
             adapter.moveAndResize(
                     bounds.x() + WINDOW_BORDER,
-                    bounds.y() + WINDOW_HEADER_HEIGHT,
+                    bounds.y() + headerHeight,
                     Math.max(1, bounds.width() - 2 * WINDOW_BORDER),
-                    Math.max(1, bounds.height() - WINDOW_HEADER_HEIGHT - WINDOW_BORDER));
+                    Math.max(1, bounds.height() - headerHeight - WINDOW_BORDER));
             previous = bounds;
         }
     }

@@ -8,11 +8,15 @@ import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /** 内置调色板；颜色字面量仅在主题定义中出现，绘制代码只读取语义令牌。 */
 public final class BuiltinThemes {
     /** 未知扩展令牌的最终回退色，保持可见而不抛出渲染异常。 */
     private static final int UNKNOWN_TOKEN_COLOR = 0xFFFFFFFF;
+
+    /** 缺省即关闭的令牌：没写的主题不模糊、不画窗下投影，不向默认调色板借值。 */
+    private static final Set<String> OPTIONAL_TOKENS = Set.of(EXPANDED_BLUR_RADIUS, SHADOW_DROP);
 
     /** 原灰绿深色主题；也是局部主题缺项与未绑定主题组件的回退调色板。 */
     public static final FrameworkCatalog.Theme DARK =
@@ -22,6 +26,9 @@ public final class BuiltinThemes {
                     Map.ofEntries(
                             entry(BACKGROUND, 0x00000000),
                             entry(PANEL, 0xFF292C2D),
+                            entry(EXPANDED_PANEL_TOP, 0xFF292C2D),
+                            entry(COMPACT_BACKDROP, 0xFF292C2D),
+                            entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFF484D48),
                             entry(TEXT, 0xFFE2EAE5),
                             entry(ACCENT, 0xFFDBBF7B),
@@ -40,6 +47,7 @@ public final class BuiltinThemes {
                             entry(HUD_BACKGROUND, 0xCC111819),
                             entry(HUD_TEXT, 0xFFE1E8DC),
                             entry(PANEL_BOTTOM, 0xFF17191B),
+                            entry(EXPANDED_PANEL_BOTTOM, 0xFF17191B),
                             entry(HEADER_BOTTOM, 0xFF292E2C),
                             entry(BORDER, 0xFF626762),
                             entry(EDGE_LIGHT, 0xFF9C9D8C),
@@ -48,6 +56,7 @@ public final class BuiltinThemes {
                             entry(HEADER_RULE, 0xFF0D1110),
                             entry(HEADER_ACCENT, 0xFFB4A77C),
                             entry(SHADOW, 0x08000000),
+                            entry(SHADOW_DROP, 0x00000000),
                             entry(CONTROL, 0xFF303D37),
                             entry(CONTROL_HOVER, 0xFF485A51),
                             entry(CONTROL_CLOSE_HOVER, 0xFF824548),
@@ -65,6 +74,9 @@ public final class BuiltinThemes {
                     Map.ofEntries(
                             entry(BACKGROUND, 0xEEE5E9EF),
                             entry(PANEL, 0xFFF5F7FA),
+                            entry(EXPANDED_PANEL_TOP, 0xFFF5F7FA),
+                            entry(COMPACT_BACKDROP, 0xFFF5F7FA),
+                            entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFFBECDE0),
                             entry(TEXT, 0xFF192535),
                             entry(ACCENT, 0xFF325F96),
@@ -83,6 +95,7 @@ public final class BuiltinThemes {
                             entry(HUD_BACKGROUND, 0xCCF5F7FA),
                             entry(HUD_TEXT, 0xFF192535),
                             entry(PANEL_BOTTOM, 0xFFE1E8E2),
+                            entry(EXPANDED_PANEL_BOTTOM, 0xFFE1E8E2),
                             entry(HEADER_BOTTOM, 0xFFC3CFC5),
                             entry(BORDER, 0xFF819187),
                             entry(EDGE_LIGHT, 0xFFFFFFFF),
@@ -91,6 +104,7 @@ public final class BuiltinThemes {
                             entry(HEADER_RULE, 0xFF819187),
                             entry(HEADER_ACCENT, 0xFF90763F),
                             entry(SHADOW, 0x08000000),
+                            entry(SHADOW_DROP, 0x00000000),
                             entry(CONTROL, 0xFFD4DED6),
                             entry(CONTROL_HOVER, 0xFFB3C8B9),
                             entry(CONTROL_CLOSE_HOVER, 0xFFE5B6B7),
@@ -101,7 +115,56 @@ public final class BuiltinThemes {
                             entry(INPUT_ERROR, 0xFFAA3038),
                             entry(BACKGROUND_OVERLAY, 0x10FFFFFF)));
 
-    /** 墨玉：墨色底、玉色强调与朱砂标题短线，默认工作台主题。 */
+    /** 琉璃：半透明深色面板、细亮边与青色标题短线，默认主题。没有斜边和扩散阴影，窗下只留一条平投影。 */
+    public static final FrameworkCatalog.Theme GLASS =
+            new FrameworkCatalog.Theme(
+                    "kiui:glass",
+                    "琉璃",
+                    Map.ofEntries(
+                            entry(BACKGROUND, 0x00000000),
+                            entry(PANEL, 0xD90A1012),
+                            entry(EXPANDED_PANEL_TOP, 0xD90A1012),
+                            entry(COMPACT_BACKDROP, 0xFF0A1012),
+                            entry(EXPANDED_BLUR_RADIUS, 3),
+                            entry(HEADER, 0x00000000),
+                            entry(TEXT, 0xFFE6EFEC),
+                            entry(ACCENT, 0xFF7FE0C2),
+                            entry(MUTED_TEXT, 0xFF9FB1AD),
+                            entry(PROGRESS_TRACK, 0x24FFFFFF),
+                            entry(PROGRESS_FILL, 0xFF5FC3A6),
+                            entry(PREVIEW_BACKGROUND, 0x59000000),
+                            entry(INVENTORY_CELL_EVEN, 0x59000000),
+                            entry(INVENTORY_CELL_ODD, 0x66000000),
+                            entry(INVENTORY_ITEM_BACKGROUND, 0x00000000),
+                            entry(INVENTORY_BORDER, 0x38FFFFFF),
+                            entry(INVENTORY_HOVER_BORDER, 0xFF7FE0C2),
+                            entry(INVENTORY_ITEM_TEXT, 0xFFFFFFFF),
+                            entry(INVENTORY_DROP_VALID, 0x335FC3A6),
+                            entry(INVENTORY_DROP_INVALID, 0x33C62F2F),
+                            entry(HUD_BACKGROUND, 0xCC0A1012),
+                            entry(HUD_TEXT, 0xFFFFFFFF),
+                            entry(PANEL_BOTTOM, 0xD90A1012),
+                            entry(EXPANDED_PANEL_BOTTOM, 0xD90A1012),
+                            entry(HEADER_BOTTOM, 0x00000000),
+                            entry(BORDER, 0x38FFFFFF),
+                            entry(EDGE_LIGHT, 0x00000000),
+                            entry(EDGE_SIDE, 0x00000000),
+                            entry(EDGE_DARK, 0x00000000),
+                            entry(HEADER_RULE, 0x1FFFFFFF),
+                            entry(HEADER_ACCENT, 0xFF5FC3A6),
+                            entry(SHADOW, 0x00000000),
+                            entry(SHADOW_DROP, 0x40000000),
+                            entry(CONTROL, 0x0FFFFFFF),
+                            entry(CONTROL_HOVER, 0x595FC3A6),
+                            entry(CONTROL_CLOSE_HOVER, 0x99C62F2F),
+                            entry(TOOLBAR, 0x800A1012),
+                            entry(TOOLBAR_BORDER, 0x2EFFFFFF),
+                            entry(MENU, 0xF20A1012),
+                            entry(MENU_BORDER, 0x38FFFFFF),
+                            entry(INPUT_ERROR, 0xFFFF5A5A),
+                            entry(BACKGROUND_OVERLAY, 0x35070A09)));
+
+    /** 墨玉：墨色底、玉色强调与朱砂标题短线。 */
     public static final FrameworkCatalog.Theme INK_JADE =
             new FrameworkCatalog.Theme(
                     "kiui:ink_jade",
@@ -109,6 +172,9 @@ public final class BuiltinThemes {
                     Map.ofEntries(
                             entry(BACKGROUND, 0x00000000),
                             entry(PANEL, 0xFF1B2220),
+                            entry(EXPANDED_PANEL_TOP, 0xFF1B2220),
+                            entry(COMPACT_BACKDROP, 0xFF1B2220),
+                            entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFF2C3A35),
                             entry(TEXT, 0xFFE6E2D3),
                             entry(ACCENT, 0xFF7FC8A9),
@@ -127,6 +193,7 @@ public final class BuiltinThemes {
                             entry(HUD_BACKGROUND, 0xCC0F1513),
                             entry(HUD_TEXT, 0xFFE6E2D3),
                             entry(PANEL_BOTTOM, 0xFF121716),
+                            entry(EXPANDED_PANEL_BOTTOM, 0xFF121716),
                             entry(HEADER_BOTTOM, 0xFF1E2825),
                             entry(BORDER, 0xFF4A5A54),
                             entry(EDGE_LIGHT, 0xFF8FA59B),
@@ -135,6 +202,7 @@ public final class BuiltinThemes {
                             entry(HEADER_RULE, 0xFF0B0F0E),
                             entry(HEADER_ACCENT, 0xFFC8553D),
                             entry(SHADOW, 0x08000000),
+                            entry(SHADOW_DROP, 0x00000000),
                             entry(CONTROL, 0xFF243430),
                             entry(CONTROL_HOVER, 0xFF345047),
                             entry(CONTROL_CLOSE_HOVER, 0xFF7A3A32),
@@ -153,6 +221,9 @@ public final class BuiltinThemes {
                     Map.ofEntries(
                             entry(BACKGROUND, 0xEEEFE6D2),
                             entry(PANEL, 0xFFF3EBDA),
+                            entry(EXPANDED_PANEL_TOP, 0xFFF3EBDA),
+                            entry(COMPACT_BACKDROP, 0xFFF3EBDA),
+                            entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFFD9C9A5),
                             entry(TEXT, 0xFF2A2622),
                             entry(ACCENT, 0xFFB6412E),
@@ -171,6 +242,7 @@ public final class BuiltinThemes {
                             entry(HUD_BACKGROUND, 0xCCF3EBDA),
                             entry(HUD_TEXT, 0xFF2A2622),
                             entry(PANEL_BOTTOM, 0xFFE9DFC9),
+                            entry(EXPANDED_PANEL_BOTTOM, 0xFFE9DFC9),
                             entry(HEADER_BOTTOM, 0xFFC9B88F),
                             entry(BORDER, 0xFF9C8D6E),
                             entry(EDGE_LIGHT, 0xFFFFFBF0),
@@ -179,6 +251,7 @@ public final class BuiltinThemes {
                             entry(HEADER_RULE, 0xFF9C8D6E),
                             entry(HEADER_ACCENT, 0xFF4F8C7A),
                             entry(SHADOW, 0x08000000),
+                            entry(SHADOW_DROP, 0x00000000),
                             entry(CONTROL, 0xFFE3D7BE),
                             entry(CONTROL_HOVER, 0xFFD2C2A0),
                             entry(CONTROL_CLOSE_HOVER, 0xFFD99A8C),
@@ -197,6 +270,9 @@ public final class BuiltinThemes {
                     Map.ofEntries(
                             entry(BACKGROUND, 0x00000000),
                             entry(PANEL, 0xFF241F1A),
+                            entry(EXPANDED_PANEL_TOP, 0xFF241F1A),
+                            entry(COMPACT_BACKDROP, 0xFF241F1A),
+                            entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFF3A2F24),
                             entry(TEXT, 0xFFEAE0CC),
                             entry(ACCENT, 0xFFD08A4A),
@@ -215,6 +291,7 @@ public final class BuiltinThemes {
                             entry(HUD_BACKGROUND, 0xCC17140F),
                             entry(HUD_TEXT, 0xFFEAE0CC),
                             entry(PANEL_BOTTOM, 0xFF17140F),
+                            entry(EXPANDED_PANEL_BOTTOM, 0xFF17140F),
                             entry(HEADER_BOTTOM, 0xFF2A2219),
                             entry(BORDER, 0xFF5A4A3A),
                             entry(EDGE_LIGHT, 0xFFA9906F),
@@ -223,6 +300,7 @@ public final class BuiltinThemes {
                             entry(HEADER_RULE, 0xFF0E0B08),
                             entry(HEADER_ACCENT, 0xFFB08D57),
                             entry(SHADOW, 0x08000000),
+                            entry(SHADOW_DROP, 0x00000000),
                             entry(CONTROL, 0xFF3A2F24),
                             entry(CONTROL_HOVER, 0xFF55443A),
                             entry(CONTROL_CLOSE_HOVER, 0xFF7A3A32),
@@ -239,7 +317,19 @@ public final class BuiltinThemes {
         // 局部主题只需覆盖关心的令牌，缺项逐级回退；透明色零值也是有效覆盖。
         Objects.requireNonNull(theme, "theme must not be null");
         Objects.requireNonNull(token, "token must not be null");
-        return theme.colors().getOrDefault(token, defaultColor(token));
+        if (OPTIONAL_TOKENS.contains(token)) {
+            return theme.colors().getOrDefault(token, 0);
+        }
+        String inherited = switch (token) {
+            case EXPANDED_PANEL_TOP, COMPACT_BACKDROP -> PANEL;
+            case EXPANDED_PANEL_BOTTOM -> PANEL_BOTTOM;
+            default -> token;
+        };
+        Integer own = theme.colors().get(token);
+        if (own != null) {
+            return own;
+        }
+        return theme.colors().getOrDefault(inherited, defaultColor(inherited));
     }
 
     public static int defaultColor(String token) {

@@ -143,8 +143,9 @@ public final class StatusIcons {
         if (client.player == null || client.gui.screen() instanceof AbstractContainerScreen<?>) {
             return;
         }
-        List<Area> cells = StatusLayout.hudCells(graphics.guiWidth(), graphics.guiHeight());
-        Frame frame = frame(client, cells, List.of());
+        var blocked = StatusBlockers.hud(graphics.guiWidth(), graphics.guiHeight());
+        List<Area> cells = StatusLayout.hudCells(graphics.guiWidth(), graphics.guiHeight(), blocked);
+        Frame frame = frame(client, cells, blocked);
         paint(graphics, client.font, frame);
         if (peekKey.isDown()) {
             peek(graphics, client.font, frame);

@@ -20,6 +20,20 @@ public final class StatusBlockers {
     private static final int SLOT_PANEL_MARGIN_PIXELS = 8;
     private static final List<Source> SOURCES = new CopyOnWriteArrayList<>();
 
+    private static final List<HudSource> HUD_SOURCES = new CopyOnWriteArrayList<>();
+
+    public interface HudSource {
+        List<Area> blocked(int guiWidth, int guiHeight);
+    }
+
+    public static void registerHud(HudSource source) {
+        HUD_SOURCES.add(Objects.requireNonNull(source));
+    }
+
+    static List<Area> hud(int width, int height) {
+        return HUD_SOURCES.stream().flatMap(source -> source.blocked(width, height).stream()).toList();
+    }
+
     private StatusBlockers() {}
 
     /** 一个界面里额外要让开的矩形；不认识的界面返回空列表。 */

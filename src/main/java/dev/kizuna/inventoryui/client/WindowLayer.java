@@ -24,7 +24,7 @@ import net.minecraft.client.input.MouseButtonEvent;
 import org.lwjgl.glfw.GLFW;
 
 /** 一个宿主屏的窗口绘制与输入。公开坐标为屏幕逻辑像素；管理器保存视口内的局部矩形。 */
-public final class WindowLayer {
+public class WindowLayer {
     private static final int DRAG_ICON_SIZE = 32;
     private static final int DRAG_POINTER_GAP = 8;
     private static final int OUTSIDE = Integer.MIN_VALUE / 2;

@@ -7,6 +7,7 @@ import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 import dev.kizuna.inventoryui.hud.HudLayout;
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.window.UiWindowManager;
+import dev.kizuna.inventoryui.workspace.UiVersion;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -241,6 +242,7 @@ public final class WorkspaceScreen extends Screen implements VanillaHudHidden {
             }
         } else {
             rows.add(new Row("恢复窗口布局", runtime::resetWindowLayout));
+            rows.add(new Row("界面：切换到新版", () -> runtime.uiVersion(UiVersion.MODERN)));
             rows.add(
                     new Row(
                             "窗口动画：" + (runtime.motion() ? "开启" : "关闭"),

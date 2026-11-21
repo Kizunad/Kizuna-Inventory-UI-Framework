@@ -86,6 +86,12 @@ loom {
             property 'kiui.smoke', 'true'
             runDir 'build/smoke'
         }
+        modernSmoke {
+            client()
+            source sourceSets.demo
+            property 'kiui.modernSmoke', 'true'
+            runDir 'build/modern-smoke'
+        }
         wireServer {
             server()
             source sourceSets.wireSmoke

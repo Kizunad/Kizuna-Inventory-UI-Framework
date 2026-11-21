@@ -4,6 +4,7 @@ import dev.kizuna.inventoryui.client.ClientModule;
 import dev.kizuna.inventoryui.client.InventoryUiClient;
 import dev.kizuna.inventoryui.theme.BuiltinThemes;
 import dev.kizuna.inventoryui.window.UiWindowManager;
+import dev.kizuna.inventoryui.workspace.UiVersion;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -64,6 +65,7 @@ public final class DemoClient implements ClientModInitializer {
     private static final int CAPTURE_BACKGROUNDS_TICK = 220;
     private static final int THEME_MENU_TICK = 230;
     private static final int FINISH_SMOKE_TICK = 270;
+    private static final String SMOKE_OK = "KIUI_DEMO_SMOKE_OK";
     private static final int SIZE_ACTION_OFFSET = 75;
     private static final int PIN_ACTION_OFFSET = 31;
     private static final int MINIMIZE_ACTION_OFFSET = 53;
@@ -104,6 +106,11 @@ public final class DemoClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        if (Boolean.getBoolean("kiui.modernSmoke")) {
+            // 新版界面有自己的一条冒烟，不和下面旧版的流程混跑。
+            ModernSmoke.register();
+            return;
+        }
         // 普通演示停留在可交互工作台；只有显式启用 smoke 才自动操作、截屏并退出。
         ClientTickEvents.END_CLIENT_TICK.register(
                 client -> {
@@ -131,6 +138,8 @@ public final class DemoClient implements ClientModInitializer {
                             return;
                         }
                         var runtime = InventoryUiClient.runtime();
+                        // 这套演示走的是旧版界面：整屏工作台、底栏卡片、尺寸输入和整窗锁。
+                        runtime.uiVersion(UiVersion.CLASSIC);
                         runtime.openWorkspace();
                         inventory = runtime.open("demo:inventory", null);
                         placeWindow(inventory, INVENTORY_WINDOW_X, INVENTORY_WINDOW_Y);
@@ -505,6 +514,7 @@ public final class DemoClient implements ClientModInitializer {
                         } catch (IOException failure) {
                             throw new UncheckedIOException(failure);
                         }
+                        System.out.println(SMOKE_OK);
                         client.stop();
                     }
                 });

@@ -7,7 +7,7 @@
 | 能力 | 框架实现 | 扩展 JAR 提供 |
 |---|---|---|
 | 主屏与入口 | `WorkspaceScreen`、功能目录搜索／分页、固定入口、窗口栏 | 功能声明、窗口工厂、业务对象 ID |
-| 窗口 | 单例／按对象实例、置顶、拖动、拖动／文本尺寸调整、最小化／恢复动画、固定 HUD、scope 清理 | 窗口内容、业务会话生命周期 |
+| 窗口 | 单例／按对象实例、置顶、拖动、拖动改尺寸、展开／收小、摘要投影、scope 清理 | 窗口内容、业务会话生命周期 |
 | 网格库存 | `InventorySnapshot`、`InventoryState`、`InventoryDelta`、占格预检、跨窗拖放、旋转、分堆 | 权威快照、服务端移动／分堆事务 |
 | 装备与自定义落点 | `ItemSlotComponent`、`ItemDropTarget`、`InventoryDragSession` | 槽位 ID、布局、物品来源、接受条件、装备请求 |
 | 物品展示 | 图标与缺失回退、数量、主题边框、`ItemPresentation` 提示／操作 | 稀有度映射、属性行、详情窗、菜单动作 |
@@ -31,7 +31,7 @@
 
 ## 窗口偏好
 
-默认路径为 Fabric 配置目录下的 `kizuna-inventory-ui.json`，格式版本为 `WorkspacePreferences.FORMAT_VERSION`。保存主题、背景、按窗口类型的期望外框、HUD 布局、固定功能入口、窗口类型固定偏好和动画开关；不保存服务器对象 ID、库存内容或连接身份。
+默认路径为 Fabric 配置目录下的 `kizuna-inventory-ui.json`，格式版本为 `WorkspacePreferences.FORMAT_VERSION`。保存主题、背景、按窗口类型的期望外框、HUD 布局、固定功能入口、按功能保存的小窗位置与固定意图、动画和模糊开关；不保存服务器对象 ID、库存内容或连接身份。
 
 明确关窗、拖动／调整尺寸完成、离开工作台和断线时保存。扩展程序通过 API 批量调整表现后可调用 `runtime.savePreferences()`。坏文件或更高版本文件会记录错误并保留原文件，当前运行使用默认外观，写回被拒绝。可通过 `runtime.preferenceError()` 查询。
 

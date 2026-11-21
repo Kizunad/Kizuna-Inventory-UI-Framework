@@ -6,13 +6,13 @@
 
 HUD 注册项描述稳定 ID、标题、内容工厂、数据源、默认锚点和尺寸，以及是否允许移动、缩放或隐藏。框架据此生成 HUD 管理列表，不要求修改公共枚举。
 
-`FrameworkCatalog.Hud(id, title, anchor, width, height)` 声明元数据，`ClientBindings.hud(id, renderer)` 提供绘制实现。回调接收已经移动到 HUD 左上角并缩放的 `GuiGraphicsExtractor`（提交渲染状态，帧末统一绘制）、逻辑宽高和 tick delta。工作台关闭时 Fabric HUD 回调继续绘制；工作台的“HUD 布局”入口提供预览、显隐、位置、缩放和复位。游戏 F1 隐藏 HUD 时也隐藏这些部件。
+`FrameworkCatalog.Hud(id, title, anchor, width, height)` 声明元数据，`ClientBindings.hud(id, renderer)` 提供绘制实现。回调接收已经移动到 HUD 左上角并缩放的 `GuiGraphicsExtractor`（提交渲染状态，帧末统一绘制）、逻辑宽高和 tick delta。工作台关闭时 Fabric HUD 回调继续绘制，模块可通过 HudLayout 调整显隐、位置和缩放。游戏 F1 隐藏 HUD 时也隐藏这些部件。
 
 `ClientRuntime.hudLayout()` 返回 `HudLayout`。`place(id, new HudLayout.Placement(visible, offsetX, offsetY, scale))` 设置相对锚点的布局，缩放范围 0.25–4；`bounds()` 在视口变化时重新约束到屏幕内。偏好保存在本地版本化 JSON；布局面板菜单外可直接拖动 HUD，菜单也提供位置、缩放和复位操作。
 
 `SlotBar(id, slots)` 声明任意数量、具有稳定 ID 的 `Slot(id, kind)`；`ClientBindings.slotBar(id, provider)` 为每个槽返回 `SlotContent(label, activate)`。槽位注册提供内容契约，不自动生成工作台底栏；模块通过 `ItemSlotComponent` 在自己的窗口内承载交互。模块如需投影同一栏位，再声明一个 HUD 并调用 `bindings.slotBarHud(hudId, barId)`；框架复用同一内容供应器绘制，无需自行复制绑定状态。一个 HUD 只能选择自定义绘制器或槽位栏投影之一。
 
-工作台底部仅在有最小化窗口时出现独立卡片，沿用悬浮窗口的主题和图标，每张卡片只有恢复、关闭两个按钮。恢复保留同一实例和 HUD 固定状态，关闭释放窗口及订阅；标题不作为按钮。没有最小化窗口就不渲染底部内容、不占高度。固定的功能入口改在“功能”菜单置顶，正常窗口不重复生成页签。
+工作台内的小窗整块可拖动，右上方控件可展开、锁定和关闭。锁住时游戏画面投影同一份摘要，作用域随窗口存活。
 
 适用于当前未发布的 `0.1.0-SNAPSHOT`：此前依赖自动底栏的模块应使用 `ItemSlotComponent`，或显式注册 `slotBarHud`。槽位注册、绑定回调及已保存的固定入口 ID 均保留。
 
@@ -20,7 +20,7 @@ HUD 注册项描述稳定 ID、标题、内容工厂、数据源、默认锚点�
 
 工作台打开时隐藏整个原版 HUD，包括物品栏、十字准星、生命值、饥饿值、经验、聊天、计分板和状态提示；世界画面仍正常渲染。关闭工作台后立即按当前游戏设置恢复，不写入或切换玩家的 F1 设置。
 
-扩展的独立全屏库存页面可让自己的 `Screen` 实现 `dev.kizuna.inventoryui.client.VanillaHudHidden`，使用相同规则。框架的普通 HUD 回调也在此类页面下停止；工作台“HUD 布局”面板通过显式绘制保留预览。该接口不控制其他模组自己注入的绘制，也不隐藏其他未标记的游戏界面。
+扩展的独立全屏库存页面可让自己的 `Screen` 实现 `dev.kizuna.inventoryui.client.VanillaHudHidden`，使用相同规则。框架的普通 HUD 回调也在此类页面下停止。该接口不控制其他模组自己注入的绘制，也不隐藏其他未标记的游戏界面。
 
 概念示例：一个 `example:capacity` HUD 读取库存负重快照，在右下角显示容量。默认位置只是初始值；用户保存的位置按 HUD ID 恢复。模块暂时缺失时保留偏好，不套用到其他部件。
 
@@ -30,7 +30,7 @@ HUD 与工作台窗口可以订阅同一个状态源，但具有独立生命周�
 
 | 对象 | 数据来自哪里 | 点击或拖放的含义 |
 |---|---|---|
-| 最小化窗口卡片 | 当前最小化窗口 | 恢复同一窗口或关闭并释放 |
+| 小窗摘要 | 登记了 CompactProvider 的窗口 | 显示当前数据、展开或关闭 |
 | 游戏槽位栏 | 模块提供的槽位与绑定快照 | 提交物品或动作绑定意图 |
 | HUD 部件 | 模块状态源 | 显示数据，按明确能力提供交互 |
 

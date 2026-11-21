@@ -1,4 +1,10 @@
 {
+  "kizuna_inventory_ui.compact.flow": "Auto arrange",
+  "kizuna_inventory_ui.compact.scale": "Scale %s%%",
+  "kizuna_inventory_ui.compact.backdrop": "Backdrop %s%%",
+  "kizuna_inventory_ui.version.classic": "Switched to the classic interface",
+  "kizuna_inventory_ui.version.modern": "Switched to the new interface",
+  "kizuna_inventory_ui.compact.retry": " (retry)",
   "key.kizuna_inventory_ui.workspace": "Open inventory workspace",
   "key.category.kizuna_inventory_ui.general": "Inventory UI Framework",
   "key.kizuna_inventory_ui.status_peek": "Expand Merged Status Effects (Hold)",
