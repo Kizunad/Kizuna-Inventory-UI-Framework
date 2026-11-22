@@ -8,6 +8,7 @@ import dev.kizuna.inventoryui.theme.ThemeTokens;
 import dev.kizuna.inventoryui.window.UiWindowManager.Rect;
 import dev.kizuna.inventoryui.window.UiWindowManager.WindowKey;
 import dev.kizuna.inventoryui.window.UiWindowManager.WindowState;
+import dev.kizuna.inventoryui.workspace.IconStyle;
 import dev.kizuna.inventoryui.workspace.UiVersion;
 import dev.kizuna.inventoryui.workspace.WorkspaceController;
 import dev.kizuna.inventoryui.workspace.WorkspacePreferences.Snapshot;
@@ -23,6 +24,7 @@ import net.minecraft.client.gui.screens.Screen;
 final class ModernEdition extends UiEdition {
     final CompactWindows compact;
     private final Set<String> migratedPins = new LinkedHashSet<>();
+    private IconStyle icons = IconStyle.DEFAULT;
     private Snapshot loaded = Snapshot.empty();
     private List<CompactWindows.Projection> hudFrame = List.of();
 
@@ -68,6 +70,7 @@ final class ModernEdition extends UiEdition {
         loaded = saved;
         compact.placements.putAll(saved.modern().compact());
         migratedPins.addAll(saved.modern().migratedPins());
+        icons = saved.modern().icons();
     }
 
     @Override
@@ -77,7 +80,7 @@ final class ModernEdition extends UiEdition {
 
     @Override
     Snapshot store(Snapshot saved, Map<String, Rect> windows) {
-        return saved.withModern(new Snapshot.Modern(windows, compact.placements, migratedPins));
+        return saved.withModern(new Snapshot.Modern(windows, compact.placements, migratedPins, icons));
     }
 
     @Override
@@ -102,6 +105,14 @@ final class ModernEdition extends UiEdition {
                 .findFirst()
                 .ifPresent(compact::pin);
         return true;
+    }
+
+    IconStyle icons() {
+        return icons;
+    }
+
+    void icons(IconStyle style) {
+        icons = style;
     }
 
     /** 这个窗口能不能收小和锁：登记了摘要，并且是玩家可以改布局的窗口。 */

@@ -6,6 +6,7 @@ import static dev.kizuna.inventoryui.theme.ThemeTokens.*;
 
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.window.UiWindowManager;
+import dev.kizuna.inventoryui.workspace.IconStyle;
 import dev.kizuna.inventoryui.workspace.UiVersion;
 import org.lwjgl.glfw.GLFW;
 
@@ -159,6 +160,9 @@ public final class ModernWorkspaceScreen extends Screen implements VanillaHudHid
                                                     () -> runtime.theme(theme.id()),
                                                     null,
                                                     theme.id())));
+            for (var style : IconStyle.values()) {
+                rows.add(new Row(iconRowLabel(style), () -> chooseIcons(style)));
+            }
             rows.add(new Row("背景：主题底色（默认透明）", () -> runtime.background(null)));
             rows.add(new Row("背景缩略图", () -> toggle(Panel.BACKGROUNDS)));
             if (runtime.localBackgrounds() != null) {
@@ -414,6 +418,19 @@ public final class ModernWorkspaceScreen extends Screen implements VanillaHudHid
         FEATURES,
         APPEARANCE,
         BACKGROUNDS
+    }
+
+    private String iconRowLabel(IconStyle style) {
+        String key = "kizuna_inventory_ui.icons.row";
+        if (style == runtime.iconStyle()) {
+            key = "kizuna_inventory_ui.icons.row_current";
+        }
+        return Component.translatable(key, Component.translatable(style.nameKey())).getString();
+    }
+
+    private void chooseIcons(IconStyle style) {
+        runtime.iconStyle(style);
+        rebuildControls();
     }
 
     /** background、theme 至多一个非空，分别对应缩略图卡片与带色块的主题行。 */

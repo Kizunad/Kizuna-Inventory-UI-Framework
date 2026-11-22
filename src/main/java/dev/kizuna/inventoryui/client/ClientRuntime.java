@@ -14,6 +14,7 @@ import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.theme.BuiltinThemes;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
 import dev.kizuna.inventoryui.window.UiWindowManager;
+import dev.kizuna.inventoryui.workspace.IconStyle;
 import dev.kizuna.inventoryui.workspace.UiVersion;
 import dev.kizuna.inventoryui.workspace.WorkspaceController;
 import dev.kizuna.inventoryui.workspace.WorkspacePreferences;
@@ -33,6 +34,8 @@ import java.util.function.Function;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 /** Fabric 客户端的组合根；状态、内容和业务动作由子模组提供。所有调用限定客户端线程。 */
 public final class ClientRuntime {
@@ -52,6 +55,7 @@ public final class ClientRuntime {
     private List<Area> hudBlocked = List.of();
     private final InventoryDragSession drag = new InventoryDragSession();
     private final ItemContextMenu contextMenu = new ItemContextMenu();
+    private final StyledIcons icons = new StyledIcons(ClientRuntime::resourceExists, ClientRuntime::reportMissingIcon);
     private WorkspacePreferences preferences;
     private WorkspacePreferences.Snapshot saved = WorkspacePreferences.Snapshot.empty();
     private String preferenceError = "";
@@ -428,6 +432,46 @@ public final class ClientRuntime {
     /** 当前版标题栏的高度；窗口内容区从它下面开始。 */
     int headerHeight() {
         return edition.headerHeight();
+    }
+
+    /** 新版界面的图标风格；旧版界面不读它。 */
+    public IconStyle iconStyle() {
+        return modern.icons();
+    }
+
+    public void iconStyle(IconStyle style) {
+        modern.icons(Objects.requireNonNull(style));
+        savePreferences();
+    }
+
+    /**
+     * 当前图标风格下某个图标的贴图。图标 ID 的命名空间是出图的模块，路径是图标名；
+     * 这种风格没有这张图时报错并照样返回它的路径，画出来是缺图的格子。
+     */
+    public Identifier icon(Identifier icon) {
+        return icons.texture(modern.icons(), icon);
+    }
+
+    /** 当前资源里查过确实没有的图标贴图。 */
+    public Set<Identifier> missingIcons() {
+        return icons.missing();
+    }
+
+    void reloadIcons() {
+        icons.reload();
+    }
+
+    private static boolean resourceExists(Identifier texture) {
+        return Minecraft.getInstance().getResourceManager().getResource(texture).isPresent();
+    }
+
+    private static void reportMissingIcon(String message) {
+        // 日志里留一条错误；人在游戏里时聊天栏也提示一次。
+        System.getLogger(ClientRuntime.class.getName()).log(System.Logger.Level.ERROR, message);
+        var player = Minecraft.getInstance().player;
+        if (player != null) {
+            player.sendSystemMessage(Component.literal(message));
+        }
     }
 
     public boolean blur() {

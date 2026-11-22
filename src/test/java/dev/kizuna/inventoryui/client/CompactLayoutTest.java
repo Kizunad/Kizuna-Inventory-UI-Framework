@@ -31,6 +31,16 @@ class CompactLayoutTest {
     }
 
     @Test
+    void flowStopsJustShortOfAnObstacleWithoutExtraSpacing() {
+        // 障碍自己带余量：小窗下沿可以贴到障碍上沿，再往下一个像素就得另起一列。
+        var obstacle = new Rect(0, MARGIN + 40, 200, 30);
+        var touching = CompactLayout.arrange(FRAME, List.of(flowing("fits", 0, 0, 60, 40)), List.of(obstacle));
+        assertEquals(new Rect(MARGIN, MARGIN, 60, 40), touching.get("fits"));
+        var crossing = CompactLayout.arrange(FRAME, List.of(flowing("tall", 0, 0, 60, 41)), List.of(obstacle));
+        assertEquals(new Rect(MARGIN, MARGIN + 40 + 30 + GAP, 60, 41), crossing.get("tall"));
+    }
+
+    @Test
     void fullColumnContinuesInANewColumnToTheRight() {
         var items = List.of(flowing("a", 0, 0, 60, 100), flowing("b", 0, 1, 60, 100), flowing("c", 0, 2, 40, 100));
         var layout = CompactLayout.arrange(FRAME, items, List.of());

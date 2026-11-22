@@ -17,23 +17,27 @@ final class ModernChrome {
     private static final int SHADOW_OFFSET_Y = 3;
     private static final int DROP_SHADOW_HEIGHT = 3;
     private static final int CONTROL_ICON_SIZE = 7;
-    private static final int CONTROL_TEXTURE_SIZE = 48;
+    private static final int CONTROL_TEXTURE_SIZE = 28;
+    private static final int UNTINTED = 0xFFFFFFFF;
+    private static final String NAMESPACE = "kizuna_inventory_ui";
 
-    enum Action {
-        RESTORE("maximize-2"),
-        MINIMIZE("minus"),
-        PIN("lock-keyhole-open"),
-        CLOSE("x");
-        final Identifier icon;
+    enum Action { RESTORE, MINIMIZE, PIN, CLOSE }
 
-        Action(String icon) {
-            this.icon =
-                    Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "textures/gui/window/" + icon + ".png");
-        }
+    /** 按钮的图标 ID；贴图由运行时按玩家选的图标风格去找。锁按钮按窗口锁没锁用两张图。 */
+    static Identifier icon(Action action, UiWindowManager.WindowState state) {
+        String name = switch (action) {
+            case RESTORE -> "expand";
+            case MINIMIZE -> "collapse";
+            case CLOSE -> "close";
+            case PIN -> {
+                if (state.pinned()) {
+                    yield "lock";
+                }
+                yield "unlock";
+            }
+        };
+        return Identifier.fromNamespaceAndPath(NAMESPACE, name);
     }
-
-    private static final Identifier PINNED =
-            Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "textures/gui/window/lock-keyhole.png");
 
     private static final List<Action> WINDOW_ACTIONS =
             List.of(Action.MINIMIZE, Action.PIN, Action.CLOSE);
@@ -137,7 +141,7 @@ final class ModernChrome {
 
     static void controls(GuiGraphicsExtractor context, ClientRuntime runtime, UiWindowManager.WindowState state,
             UiWindowManager.Rect bounds, int mouseX, int mouseY) {
-        // 图标随文字色染色，浅底主题也能分辨窗口控制；整张贴图缩放到统一图标尺寸。
+        // 图标按玩家选的风格取图，原色绘制；整张贴图缩放到统一图标尺寸。
         for (Action action : actions(runtime, state)) {
             var area = actionBounds(runtime, state, bounds, action);
             if (area == null) {
@@ -152,7 +156,7 @@ final class ModernChrome {
                         runtime.color(
                                 action == Action.CLOSE ? CONTROL_CLOSE_HOVER : CONTROL_HOVER));
             }
-            var icon = action == Action.PIN && state.pinned() ? PINNED : action.icon;
+            var icon = runtime.icon(icon(action, state));
             int iconSize = Math.min(CONTROL_ICON_SIZE, Math.min(area.width(), area.height()));
             context.blit(
                     RenderPipelines.GUI_TEXTURED,
@@ -167,7 +171,7 @@ final class ModernChrome {
                     CONTROL_TEXTURE_SIZE,
                     CONTROL_TEXTURE_SIZE,
                     CONTROL_TEXTURE_SIZE,
-                    runtime.color(TEXT));
+                    UNTINTED);
         }
     }
 }

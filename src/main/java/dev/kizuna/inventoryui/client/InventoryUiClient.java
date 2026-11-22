@@ -105,6 +105,7 @@ public final class InventoryUiClient implements ClientModInitializer {
                                 keyCategory));
         StatusIcons.register(keyCategory);
         UiVersionCommand.register(runtime);
+        IconStyleCommand.register(runtime);
         StatusBlockers.register(screen -> runtime.layer(screen).map(WindowLayer::blockedAreas).orElseGet(List::of));
         StatusBlockers.registerHud((guiWidth, guiHeight) -> runtime.hudBlockedAreas());
         HudElementRegistry.addFirst(Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "compact_layout"),
@@ -151,6 +152,10 @@ public final class InventoryUiClient implements ClientModInitializer {
                 .registerReloadListener(
                         Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "backgrounds"),
                         (ResourceManagerReloadListener) manager -> runtime.reloadBackgrounds());
+        ResourceLoader.get(PackType.CLIENT_RESOURCES)
+                .registerReloadListener(
+                        Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "styled_icons"),
+                        (ResourceManagerReloadListener) manager -> runtime.reloadIcons());
         ResourceLoader.get(PackType.CLIENT_RESOURCES)
                 .registerReloadListener(
                         Identifier.fromNamespaceAndPath("kizuna_inventory_ui", "status_groups"),

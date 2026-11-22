@@ -28,6 +28,9 @@ public final class BuiltinThemes {
                             entry(PANEL, 0xFF292C2D),
                             entry(EXPANDED_PANEL_TOP, 0xFF292C2D),
                             entry(COMPACT_BACKDROP, 0xFF292C2D),
+                            entry(COMPACT_TEXT, 0xFFE2EAE5),
+                            entry(COMPACT_MUTED_TEXT, 0xFFA6AFA8),
+                            entry(COMPACT_TRACK, 0xFF2A2A2A),
                             entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFF484D48),
                             entry(TEXT, 0xFFE2EAE5),
@@ -76,6 +79,9 @@ public final class BuiltinThemes {
                             entry(PANEL, 0xFFF5F7FA),
                             entry(EXPANDED_PANEL_TOP, 0xFFF5F7FA),
                             entry(COMPACT_BACKDROP, 0xFFF5F7FA),
+                            entry(COMPACT_TEXT, 0xFF192535),
+                            entry(COMPACT_MUTED_TEXT, 0xFF657085),
+                            entry(COMPACT_TRACK, 0xFFCAD3E1),
                             entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFFBECDE0),
                             entry(TEXT, 0xFF192535),
@@ -125,6 +131,9 @@ public final class BuiltinThemes {
                             entry(PANEL, 0xD90A1012),
                             entry(EXPANDED_PANEL_TOP, 0xD90A1012),
                             entry(COMPACT_BACKDROP, 0xFF0A1012),
+                            entry(COMPACT_TEXT, 0xFFFFFFFF),
+                            entry(COMPACT_MUTED_TEXT, 0xFFD5DEDB),
+                            entry(COMPACT_TRACK, 0x73000000),
                             entry(EXPANDED_BLUR_RADIUS, 3),
                             entry(HEADER, 0x00000000),
                             entry(TEXT, 0xFFE6EFEC),
@@ -174,6 +183,9 @@ public final class BuiltinThemes {
                             entry(PANEL, 0xFF1B2220),
                             entry(EXPANDED_PANEL_TOP, 0xFF1B2220),
                             entry(COMPACT_BACKDROP, 0xFF1B2220),
+                            entry(COMPACT_TEXT, 0xFFE6E2D3),
+                            entry(COMPACT_MUTED_TEXT, 0xFF9AA69D),
+                            entry(COMPACT_TRACK, 0xFF17201D),
                             entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFF2C3A35),
                             entry(TEXT, 0xFFE6E2D3),
@@ -223,6 +235,9 @@ public final class BuiltinThemes {
                             entry(PANEL, 0xFFF3EBDA),
                             entry(EXPANDED_PANEL_TOP, 0xFFF3EBDA),
                             entry(COMPACT_BACKDROP, 0xFFF3EBDA),
+                            entry(COMPACT_TEXT, 0xFF2A2622),
+                            entry(COMPACT_MUTED_TEXT, 0xFF7A6F63),
+                            entry(COMPACT_TRACK, 0xFFE1D6BF),
                             entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFFD9C9A5),
                             entry(TEXT, 0xFF2A2622),
@@ -272,6 +287,9 @@ public final class BuiltinThemes {
                             entry(PANEL, 0xFF241F1A),
                             entry(EXPANDED_PANEL_TOP, 0xFF241F1A),
                             entry(COMPACT_BACKDROP, 0xFF241F1A),
+                            entry(COMPACT_TEXT, 0xFFEAE0CC),
+                            entry(COMPACT_MUTED_TEXT, 0xFFA79A86),
+                            entry(COMPACT_TRACK, 0xFF1E1915),
                             entry(EXPANDED_BLUR_RADIUS, 0),
                             entry(HEADER, 0xFF3A2F24),
                             entry(TEXT, 0xFFEAE0CC),
@@ -323,6 +341,9 @@ public final class BuiltinThemes {
         String inherited = switch (token) {
             case EXPANDED_PANEL_TOP, COMPACT_BACKDROP -> PANEL;
             case EXPANDED_PANEL_BOTTOM -> PANEL_BOTTOM;
+            case COMPACT_TEXT -> TEXT;
+            case COMPACT_MUTED_TEXT -> MUTED_TEXT;
+            case COMPACT_TRACK -> PROGRESS_TRACK;
             default -> token;
         };
         Integer own = theme.colors().get(token);

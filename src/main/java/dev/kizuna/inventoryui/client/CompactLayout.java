@@ -15,7 +15,7 @@ import java.util.Optional;
  */
 final class CompactLayout {
     static final int MARGIN = 4;
-    static final int GAP = 4;
+    static final int GAP = 8;
 
     record Item<K>(K key, CompactPlacement placement, CompactSlot slot, CompactVariant variant) { }
 
@@ -24,15 +24,15 @@ final class CompactLayout {
     static <K> Map<K, Rect> arrange(Rect frame, List<Item<K>> items, List<Rect> obstacles) {
         // 玩家放过的位置先定下，自动排开的小窗再绕开它们。
         var result = new LinkedHashMap<K, Rect>();
-        var blockers = new ArrayList<>(obstacles);
+        var placedWindows = new ArrayList<Rect>();
         for (var item : items) {
             if (item.placement().position() == CompactPlacement.Position.PLACED) {
                 var placed = clear(resolve(item, frame), frame, obstacles);
                 result.put(item.key(), placed);
-                blockers.add(placed);
+                placedWindows.add(placed);
             }
         }
-        var flow = new Flow(frame, blockers);
+        var flow = new Flow(frame, obstacles, placedWindows);
         var ordered = items.stream()
                 .filter(item -> item.placement().position() == CompactPlacement.Position.FLOW)
                 .sorted(Comparator.comparingInt((Item<K> item) -> item.slot().column())
@@ -92,15 +92,17 @@ final class CompactLayout {
     /** 一列从上往下放；到底放不下就在右边另起一列。 */
     private static final class Flow {
         private final Rect frame;
-        private final List<Rect> blockers;
+        private final List<Rect> obstacles;
+        private final List<Rect> windows;
         private int declaredColumn = -1;
         private int left;
         private int top;
         private int columnWidth;
 
-        Flow(Rect frame, List<Rect> blockers) {
+        Flow(Rect frame, List<Rect> obstacles, List<Rect> windows) {
             this.frame = frame;
-            this.blockers = blockers;
+            this.obstacles = obstacles;
+            this.windows = windows;
             this.left = frame.x() + MARGIN;
             this.top = frame.y() + MARGIN;
         }
@@ -133,15 +135,22 @@ final class CompactLayout {
             int y = top;
             while (y + height <= frame.y() + frame.height()) {
                 var candidate = clamp(new Rect(left, y, width, height));
-                var blocker = blockers.stream()
-                        .filter(other -> overlaps(candidate, other, GAP))
-                        .findFirst();
+                var blocker = blocking(candidate);
                 if (blocker.isEmpty()) {
                     return Optional.of(candidate);
                 }
                 y = blocker.get().y() + blocker.get().height() + GAP;
             }
             return Optional.empty();
+        }
+
+        private Optional<Rect> blocking(Rect candidate) {
+            // 和别的小窗之间留出间距；障碍的矩形自己已经带了余量，只要不相交。
+            var window = windows.stream().filter(other -> overlaps(candidate, other, GAP)).findFirst();
+            if (window.isPresent()) {
+                return window;
+            }
+            return obstacles.stream().filter(other -> overlaps(candidate, other, 0)).findFirst();
         }
 
         private Rect clamp(Rect rect) {

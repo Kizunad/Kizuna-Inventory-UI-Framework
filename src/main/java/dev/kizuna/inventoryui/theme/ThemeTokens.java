@@ -13,6 +13,12 @@ public final class ThemeTokens {
     /** 小窗底色的 RGB；不透明度由每个小窗自己的偏好决定。 */
     public static final String COMPACT_BACKDROP = "compact.backdrop";
 
+    /** 小窗直接画在游戏画面上时的正文色、次要文字色和进度条槽色；主题没写时取窗口里对应的三项。 */
+    public static final String COMPACT_TEXT = "compact.text";
+
+    public static final String COMPACT_MUTED_TEXT = "compact.text.muted";
+    public static final String COMPACT_TRACK = "compact.track";
+
     public static final String BACKGROUND = "background";
     public static final String PANEL = "panel";
     public static final String HEADER = "header";

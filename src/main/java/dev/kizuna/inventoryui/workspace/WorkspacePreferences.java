@@ -124,7 +124,8 @@ public final class WorkspacePreferences {
         if (modern.has("migratedPins")) {
             modern.getAsJsonArray("migratedPins").forEach(value -> migrated.add(value.getAsString()));
         }
-        return new Snapshot.Modern(rects(modern, "windows"), compact, migrated);
+        var icons = IconStyle.of(text(modern, "icons"));
+        return new Snapshot.Modern(rects(modern, "windows"), compact, migrated, icons);
     }
 
     private static String text(JsonObject object, String field) {
@@ -156,6 +157,7 @@ public final class WorkspacePreferences {
         mergeEntries(modern, "windows", snapshot.modern().windows());
         mergeEntries(modern, "compact", snapshot.modern().compact());
         modern.add("migratedPins", JSON.toJsonTree(snapshot.modern().migratedPins()));
+        modern.addProperty("icons", snapshot.modern().icons().id());
         root.add("modern", modern);
         var parent = path.toAbsolutePath().getParent();
         Files.createDirectories(parent);
@@ -210,17 +212,24 @@ public final class WorkspacePreferences {
             UiVersion uiVersion,
             Modern modern,
             boolean blur) {
-        /** 新版界面的布局：展开窗矩形按窗口类型存，小窗按功能存；migratedPins 记下已经从旧版锁窗迁过的窗口类型。 */
+        /**
+         * 新版界面自己的偏好：展开窗矩形按窗口类型存，小窗按功能存；
+         * migratedPins 记下已经从旧版锁窗迁过的窗口类型；icons 是图标风格。
+         */
         public record Modern(
-                Map<String, Rect> windows, Map<String, CompactPlacement> compact, Set<String> migratedPins) {
+                Map<String, Rect> windows,
+                Map<String, CompactPlacement> compact,
+                Set<String> migratedPins,
+                IconStyle icons) {
             public Modern {
                 windows = Map.copyOf(windows);
                 compact = Map.copyOf(compact);
                 migratedPins = Set.copyOf(migratedPins);
+                Objects.requireNonNull(icons);
             }
 
             public static Modern empty() {
-                return new Modern(Map.of(), Map.of(), Set.of());
+                return new Modern(Map.of(), Map.of(), Set.of(), IconStyle.DEFAULT);
             }
         }
 

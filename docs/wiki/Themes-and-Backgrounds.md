@@ -40,6 +40,17 @@
 
 框架模块 `kiui:core` 内置六套主题，均定义全部颜色令牌。主题跟着界面版本走：新版界面只有 `kiui:glass`，旧版界面有另外五套、默认 `kiui:ink_jade`，偏好里的 `theme` 记的是旧版的选择（见 [模块与窗口](Modules-and-Windows.md) 的「两版界面」）。外观菜单按注册顺序列出“主题：标题”，每行右侧依次显示目标主题的面板、标题栏、文字、强调和标题短线五个色块，当前主题以强调色描边。选择立即生效，离开工作台时写入本地偏好。
 
+小窗直接画在游戏画面上，文字和进度条槽另有三个令牌：`compact.text`、`compact.text.muted`、`compact.track`；主题没写时取 `text`、`text.muted`、`progress.track`。
+
+### 图标风格（新版界面）
+
+新版界面的图标有三种风格：`item`「物品」、`glass_line`「琉璃细线」（默认）、`ink`「水墨」。玩家在新版「外观」菜单的「图标：…」三行里选，或用客户端命令 `/kiui icons item|glass_line|ink`；选择存在偏好的 `modern.icons`。旧版界面没有这一项，标题栏图标不变。
+
+- 贴图路径是 `assets/<命名空间>/textures/gui/icons/<风格>/<图标名>.png`。图标属于哪个模块就放在哪个模块的资源里，三种风格各放一张同名的图。
+- 画图标前调 `ClientRuntime.icon(Identifier.fromNamespaceAndPath("<命名空间>", "<图标名>"))` 取当前风格的贴图。框架只按「风格 + 图标 ID」拼路径，不认识具体功能。
+- 某种风格缺图时，日志里记一条错误（风格、图标 ID、应有的贴图路径），人在游戏里时聊天栏也提示一次，图标位置画出缺图的格子；不会换成别的风格的图。资源重新加载后重新检查。`ClientRuntime.missingIcons()` 返回已经查出缺的贴图。
+- 框架自己的五张窗口按钮图标（`collapse`、`expand`、`lock`、`unlock`、`close`）在 `kizuna_inventory_ui` 命名空间下，28×28，以 7×7 逻辑像素原色显示。
+
 | ID | 标题 | 配色 | 建议搭配背景 |
 |---|---|---|---|
 | `kiui:glass` | 琉璃 | 半透明深色面板、细亮边、青色标题短线；没有斜边和扩散阴影，窗下一条平投影 | 主题底色（透明） |
