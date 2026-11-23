@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.kizuna.inventoryui.client.CompactLayout.Item;
 import dev.kizuna.inventoryui.window.UiWindowManager.Rect;
 import dev.kizuna.inventoryui.workspace.CompactPlacement;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +15,8 @@ class CompactLayoutTest {
     private static final Rect CROSSHAIR = new Rect(205, 112, 16, 16);
     private static final int MARGIN = CompactLayout.MARGIN;
     private static final int GAP = CompactLayout.GAP;
+    private static final int SIDE_HEIGHT = 45;
+    private static final int RIGHT_COLUMN_CAPACITY = 4;
 
     private static Item<String> flowing(String key, int column, int order, int width, int height) {
         var variant = new CompactVariant("value", "fixture.compact.value", width, height);
@@ -28,6 +31,46 @@ class CompactLayoutTest {
         assertEquals(new Rect(MARGIN, MARGIN, 118, 30), layout.get("first"));
         assertEquals(new Rect(MARGIN, MARGIN + 30 + GAP, 75, 30), layout.get("second"));
         assertEquals(new Rect(MARGIN + 118 + GAP, MARGIN, 80, 60), layout.get("aside"));
+    }
+
+    private static Item<String> onTheRight(String key, int order, int width) {
+        var variant = new CompactVariant("value", "fixture.compact.value", width, SIDE_HEIGHT);
+        var slot = new CompactSlot(CompactSlot.Edge.RIGHT, 0, order);
+        return new Item<>(key, CompactPlacement.initial("value"), slot, variant);
+    }
+
+    @Test
+    void rightEdgeColumnHugsTheRightSideAndLeavesTheLeftColumnAlone() {
+        // 右侧一列自上而下、右边对齐，离右边线和左侧一样远；左侧那一列的位置和没有它时相同。
+        var items = List.of(onTheRight("organs", 1, 100), flowing("breath", 0, 0, 100, 25),
+                onTheRight("muscles", 0, 80));
+        var layout = CompactLayout.arrange(FRAME, items, List.of());
+        int right = FRAME.width() - MARGIN;
+        assertEquals(new Rect(MARGIN, MARGIN, 100, 25), layout.get("breath"));
+        assertEquals(new Rect(right - 80, MARGIN, 80, SIDE_HEIGHT), layout.get("muscles"));
+        assertEquals(new Rect(right - 100, MARGIN + SIDE_HEIGHT + GAP, 100, SIDE_HEIGHT), layout.get("organs"));
+    }
+
+    @Test
+    void fullRightColumnContinuesInANewColumnToTheLeft() {
+        var items = new ArrayList<Item<String>>();
+        for (int order = 0; order < RIGHT_COLUMN_CAPACITY + 1; order++) {
+            items.add(onTheRight("side" + order, order, 100));
+        }
+        var layout = CompactLayout.arrange(FRAME, items, List.of());
+        int right = FRAME.width() - MARGIN;
+        var wrapped = layout.get("side" + RIGHT_COLUMN_CAPACITY);
+        assertEquals(new Rect(right - 100 - GAP - 100, MARGIN, 100, SIDE_HEIGHT), wrapped);
+    }
+
+    @Test
+    void rightEdgeColumnStepsAsideForALeftWindowThatReachesIt() {
+        // 屏幕窄到左侧的小窗伸进右侧一列时，右侧的小窗往下让，不叠在一起。
+        var narrow = new Rect(0, 0, 180, 216);
+        var items = List.of(flowing("wide", 0, 0, 120, 30), onTheRight("side", 0, 100));
+        var layout = CompactLayout.arrange(narrow, items, List.of());
+        assertEquals(new Rect(MARGIN, MARGIN, 120, 30), layout.get("wide"));
+        assertEquals(new Rect(narrow.width() - MARGIN - 100, MARGIN + 30 + GAP, 100, SIDE_HEIGHT), layout.get("side"));
     }
 
     @Test

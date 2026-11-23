@@ -9,6 +9,7 @@ import dev.kizuna.inventoryui.window.UiWindowManager.Rect;
 import dev.kizuna.inventoryui.window.UiWindowManager.WindowKey;
 import dev.kizuna.inventoryui.window.UiWindowManager.WindowState;
 import dev.kizuna.inventoryui.workspace.UiVersion;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -116,6 +117,40 @@ class ModernWindowLayerTest {
         assertTrue(runtime.layer(replacement).isEmpty());
         assertTrue(next.blockedAreas().isEmpty());
         assertFalse(next.mouseReleased(left(45, 33)));
+    }
+
+    @Test
+    void rightClickOpensTheRegisteredWindowMenuAndRunsTheChosenAction() {
+        // 登记了菜单的窗口：标题栏和正文上按右键都弹出菜单，点菜单项执行它；窗口关掉以后菜单失效。
+        var chosen = new ArrayList<String>();
+        runtime.modern().windowMenus.put(WINDOW.windowType(), state -> List.of(
+                new ItemAction("layer", "骨架", true /* enabled */, "", () -> chosen.add(state.key().toString()))));
+        assertTrue(layer.mouseClicked(right(200, 150), false /* doubleClick */));
+        assertTrue(runtime.contextMenu().isOpen());
+        assertTrue(runtime.contextMenu().row("missing", host.width, host.height).isEmpty());
+        var row = runtime.contextMenu().row("layer", host.width, host.height).orElseThrow();
+        assertEquals(new Area(200, 150, row.width(), row.height()), row);
+        assertTrue(layer.mouseClicked(left(row.left() + 1, row.top() + 1), false /* doubleClick */));
+        assertEquals(List.of(front.key().toString()), chosen);
+        assertTrue(runtime.contextMenu().row("layer", host.width, host.height).isEmpty());
+        assertFalse(runtime.contextMenu().isOpen());
+        assertTrue(layer.mouseClicked(right(45, 33), false /* doubleClick */));
+        assertTrue(runtime.contextMenu().isOpen());
+        runtime.workspace().windows().close(back.key());
+        assertFalse(runtime.contextMenu().isOpen());
+    }
+
+    @Test
+    void rightClickGoesToTheContentWhenNoMenuIsRegistered() {
+        assertTrue(layer.mouseClicked(right(200, 150), false /* doubleClick */));
+        assertFalse(runtime.contextMenu().isOpen());
+        runtime.modern().windowMenus.put(WINDOW.windowType(), state -> List.of());
+        assertTrue(layer.mouseClicked(right(200, 150), false /* doubleClick */));
+        assertFalse(runtime.contextMenu().isOpen());
+    }
+
+    private static MouseButtonEvent right(double x, double y) {
+        return new MouseButtonEvent(x, y, new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_RIGHT, 0));
     }
 
     private void openMenu() {

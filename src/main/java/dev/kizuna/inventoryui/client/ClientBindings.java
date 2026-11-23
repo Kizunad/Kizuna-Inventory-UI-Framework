@@ -1,6 +1,7 @@
 package dev.kizuna.inventoryui.client;
 
 import dev.kizuna.inventoryui.inventory.InventoryDragSession;
+import dev.kizuna.inventoryui.inventory.ItemAction;
 import dev.kizuna.inventoryui.inventory.InventorySnapshot;
 import dev.kizuna.inventoryui.protocol.UiWire;
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
@@ -32,6 +33,12 @@ public final class ClientBindings {
     final Map<String, CompactProvider> summaries = new LinkedHashMap<>();
     final Map<String, CompactSlot> summarySlots = new LinkedHashMap<>();
     final Map<String, RestoreBinding> observers = new LinkedHashMap<>();
+    final Map<String, Function<UiWindowManager.WindowState, List<ItemAction>>> windowMenus = new LinkedHashMap<>();
+
+    /** 新版展开窗的右键菜单：在窗口里按右键时现取一遍动作，空表不弹；登记后右键不再交给窗口内容。 */
+    public void windowMenu(String windowType, Function<UiWindowManager.WindowState, List<ItemAction>> actions) {
+        add(windowType, FrameworkCatalog.Window.class, windowMenus, actions);
+    }
 
     public void compact(String windowType, CompactProvider provider) {
         compact(windowType, CompactSlot.UNORDERED, provider);

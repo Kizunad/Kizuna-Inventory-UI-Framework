@@ -4,6 +4,7 @@ import dev.kizuna.inventoryui.window.UiWindowManager.Rect;
 import dev.kizuna.inventoryui.workspace.CompactPlacement;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +12,7 @@ import java.util.Optional;
 
 /**
  * 小窗排位的几何解算，工作台和游戏画面共用。
- * 没拖过的按声明的列和顺序排开，拖过的只夹取并让开障碍。
+ * 没拖过的按声明的一侧、列和顺序排开，拖过的只夹取并让开障碍。
  */
 final class CompactLayout {
     static final int MARGIN = 4;
@@ -22,24 +23,27 @@ final class CompactLayout {
     private CompactLayout() { }
 
     static <K> Map<K, Rect> arrange(Rect frame, List<Item<K>> items, List<Rect> obstacles) {
-        // 玩家放过的位置先定下，自动排开的小窗再绕开它们。
+        // 玩家放过的位置先定下，自动排开的小窗再绕开它们，也互相绕开。
         var result = new LinkedHashMap<K, Rect>();
-        var placedWindows = new ArrayList<Rect>();
+        var taken = new ArrayList<Rect>();
         for (var item : items) {
             if (item.placement().position() == CompactPlacement.Position.PLACED) {
                 var placed = clear(resolve(item, frame), frame, obstacles);
                 result.put(item.key(), placed);
-                placedWindows.add(placed);
+                taken.add(placed);
             }
         }
-        var flow = new Flow(frame, obstacles, placedWindows);
+        var flows = new EnumMap<CompactSlot.Edge, Flow>(CompactSlot.Edge.class);
         var ordered = items.stream()
                 .filter(item -> item.placement().position() == CompactPlacement.Position.FLOW)
-                .sorted(Comparator.comparingInt((Item<K> item) -> item.slot().column())
+                .sorted(Comparator.comparing((Item<K> item) -> item.slot().edge())
+                        .thenComparingInt(item -> item.slot().column())
                         .thenComparingInt(item -> item.slot().order()))
                 .toList();
         for (var item : ordered) {
             var size = resolve(item, frame);
+            var flow = flows.computeIfAbsent(
+                    item.slot().edge(), edge -> new Flow(frame, obstacles, taken, edge));
             result.put(item.key(), flow.next(item.slot().column(), size.width(), size.height()));
         }
         return result;
@@ -89,21 +93,26 @@ final class CompactLayout {
                 && a.y() < b.y() + b.height() + gap && b.y() < a.y() + a.height() + gap;
     }
 
-    /** 一列从上往下放；到底放不下就在右边另起一列。 */
+    /** 贴着一侧一列一列排：列内从上往下，到底放不下就朝另一侧另起一列。两侧各一个，共用同一份已占位置。 */
     private static final class Flow {
         private final Rect frame;
         private final List<Rect> obstacles;
         private final List<Rect> windows;
+        private final CompactSlot.Edge edge;
         private int declaredColumn = -1;
-        private int left;
+        private int edgeX;
         private int top;
         private int columnWidth;
 
-        Flow(Rect frame, List<Rect> obstacles, List<Rect> windows) {
+        Flow(Rect frame, List<Rect> obstacles, List<Rect> windows, CompactSlot.Edge edge) {
             this.frame = frame;
             this.obstacles = obstacles;
             this.windows = windows;
-            this.left = frame.x() + MARGIN;
+            this.edge = edge;
+            this.edgeX = frame.x() + MARGIN;
+            if (edge == CompactSlot.Edge.RIGHT) {
+                this.edgeX = frame.x() + frame.width() - MARGIN;
+            }
             this.top = frame.y() + MARGIN;
         }
 
@@ -118,14 +127,27 @@ final class CompactLayout {
                 free = descend(width, height);
             }
             // 整个可用区都排满时退回夹取后的位置，允许重叠。
-            var placed = free.orElseGet(() -> clamp(new Rect(left, top, width, height)));
+            var placed = free.orElseGet(() -> clamp(new Rect(left(width), top, width, height)));
             columnWidth = Math.max(columnWidth, width);
             top = placed.y() + height + GAP;
+            windows.add(placed);
             return placed;
         }
 
+        private int left(int width) {
+            // 右侧的列以右边线为准，窄的小窗也贴着右边。
+            if (edge == CompactSlot.Edge.RIGHT) {
+                return edgeX - width;
+            }
+            return edgeX;
+        }
+
         private void startColumn() {
-            left += columnWidth + GAP;
+            int step = columnWidth + GAP;
+            if (edge == CompactSlot.Edge.RIGHT) {
+                step = -step;
+            }
+            edgeX += step;
             top = frame.y() + MARGIN;
             columnWidth = 0;
         }
@@ -134,7 +156,7 @@ final class CompactLayout {
             // 每次越过一个挡路的矩形，纵坐标只增不减。
             int y = top;
             while (y + height <= frame.y() + frame.height()) {
-                var candidate = clamp(new Rect(left, y, width, height));
+                var candidate = clamp(new Rect(left(width), y, width, height));
                 var blocker = blocking(candidate);
                 if (blocker.isEmpty()) {
                     return Optional.of(candidate);

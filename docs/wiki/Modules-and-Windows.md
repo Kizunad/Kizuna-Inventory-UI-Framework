@@ -150,7 +150,9 @@
 
 ### 小窗和只读恢复
 
-模块用 `ClientBindings.compact(windowType, provider)` 登记摘要，或用 `compact(windowType, slot, provider)` 同时声明它没被拖动时排在哪一列、列内第几个（`CompactSlot(column, order)`）。`CompactProvider.variants()` 返回有序、非空的样式：`CompactVariant(id, nameKey, width, height)`，`id` 是写进配置的稳定英文 ID，`nameKey` 是右键菜单里显示名的翻译键，尺寸是缩放前的 GUI 像素。`draw(g, state, variant, delta)` 在已经缩放、裁剪的局部坐标绘制，只读当前连接数据。宿主内可拖动透明区域，悬停显示展开、锁、关闭。右键选择样式、缩放和底色，拖过的小窗还有「自动排位」。
+模块用 `ClientBindings.compact(windowType, provider)` 登记摘要，或用 `compact(windowType, slot, provider)` 同时声明它没被拖动时排在哪一列、列内第几个（`CompactSlot(column, order)` 贴左侧；`CompactSlot(Edge.RIGHT, column, order)` 贴右侧，列内右对齐，放不下往左另起一列；左右两侧自动排开的小窗互相让开，状态图标再让开它们）。`CompactProvider.variants()` 返回有序、非空的样式：`CompactVariant(id, nameKey, width, height)`，`id` 是写进配置的稳定英文 ID，`nameKey` 是右键菜单里显示名的翻译键，尺寸是缩放前的 GUI 像素。`draw(g, state, variant, delta)` 在已经缩放、裁剪的局部坐标绘制，只读当前连接数据。宿主内可拖动透明区域，悬停显示展开、锁、关闭。右键选择样式、缩放和底色，拖过的小窗还有「自动排位」。
+
+新版展开窗可以用 `ClientBindings.windowMenu(windowType, actions)` 登记右键菜单：在这个窗口的标题栏或正文按右键时现取一遍 `ItemAction`，空表不弹；登记后这个窗口的右键不再交给窗口内容。菜单跟着窗口，窗口关掉或收小就失效。`ItemContextMenu.row(actionId, width, height)` 查某一项现在的屏幕矩形（验收点击用）。旧版界面不读这项登记。
 
 持久锁需用 `ClientBindings.restore(featureId, binding)` 登记单例及只读数据源。`readiness()` 检查本连接的玩家、业务通道、数据和权限。`observe(state, status)` 为新请求登记 scope 清理，只在收到匹配请求的首份权威快照后回报 LIVE。手动开窗和自动恢复共用观察；恢复时不创建展开组件，不调用 featureOpened。等待或拒绝时小窗不显示数字。模块可在数据变化时调用 `recheckRestores()`；失败可从功能入口重试。按对象开的窗只能锁在本次连接。
 

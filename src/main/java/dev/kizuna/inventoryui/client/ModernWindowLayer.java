@@ -236,6 +236,9 @@ public final class ModernWindowLayer extends WindowLayer {
             motions.put(state.key(), new WindowMotion(state.bounds()));
         }
         var bounds = onScreen(local);
+        if (e.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && openWindowMenu(state, e)) {
+            return true;
+        }
         if (e.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             if (e.y() < bounds.y() + WINDOW_HEADER_HEIGHT) {
                 clickHeader(state, bounds, e);
@@ -254,6 +257,21 @@ public final class ModernWindowLayer extends WindowLayer {
             view.layout(bounds);
             view.adapter.mouseClicked(view.local(e), doubleClick);
         }
+        return true;
+    }
+
+    private boolean openWindowMenu(WindowState state, MouseButtonEvent e) {
+        // 窗口类型登记了菜单才接管右键；菜单跟着窗口走，窗口关掉或收小就失效。
+        var menu = runtime.modern().windowMenus.get(state.key().windowType());
+        if (menu == null) {
+            return false;
+        }
+        var actions = menu.apply(state);
+        if (actions.isEmpty()) {
+            return false;
+        }
+        cancelInput();
+        runtime.contextMenu().open((int) e.x(), (int) e.y(), actions, () -> !state.closed() && !state.minimized());
         return true;
     }
 

@@ -7,6 +7,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.ToIntFunction;
 import net.minecraft.client.Minecraft;
@@ -51,6 +52,20 @@ public final class ItemContextMenu {
         x = Math.max(0, Math.min(x, width - w));
         y = Math.max(0, Math.min(y, height - visibleRows * ROW_HEIGHT));
         return new Area(x, y, w, visibleRows * ROW_HEIGHT);
+    }
+
+    /** 某个动作那一行现在在屏幕上的矩形；菜单没开、没有这个动作、或它滚出了可见的几行时为空。 */
+    public Optional<Area> row(String actionId, int width, int height) {
+        if (!isOpen()) {
+            return Optional.empty();
+        }
+        var menu = area(width, height);
+        for (int row = 0; row < visibleRows; row++) {
+            if (actions.get(row + offset).id().equals(actionId)) {
+                return Optional.of(new Area(menu.left(), menu.top() + row * ROW_HEIGHT, menu.width(), ROW_HEIGHT));
+            }
+        }
+        return Optional.empty();
     }
 
     public void render(

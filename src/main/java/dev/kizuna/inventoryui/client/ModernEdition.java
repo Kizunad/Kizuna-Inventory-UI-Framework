@@ -2,6 +2,7 @@ package dev.kizuna.inventoryui.client;
 
 import static dev.kizuna.inventoryui.client.ModernMetrics.*;
 
+import dev.kizuna.inventoryui.inventory.ItemAction;
 import dev.kizuna.inventoryui.registry.FrameworkCatalog;
 import dev.kizuna.inventoryui.theme.BuiltinThemes;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
@@ -12,10 +13,12 @@ import dev.kizuna.inventoryui.workspace.IconStyle;
 import dev.kizuna.inventoryui.workspace.UiVersion;
 import dev.kizuna.inventoryui.workspace.WorkspaceController;
 import dev.kizuna.inventoryui.workspace.WorkspacePreferences.Snapshot;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -23,6 +26,7 @@ import net.minecraft.client.gui.screens.Screen;
 /** 新版界面：琉璃外框，登记了摘要的窗口可以收成小窗并锁到游戏画面。布局存在偏好的 modern 一项里。 */
 final class ModernEdition extends UiEdition {
     final CompactWindows compact;
+    final Map<String, Function<WindowState, List<ItemAction>>> windowMenus = new LinkedHashMap<>();
     private final Set<String> migratedPins = new LinkedHashSet<>();
     private IconStyle icons = IconStyle.DEFAULT;
     private Snapshot loaded = Snapshot.empty();

@@ -318,6 +318,7 @@ public final class ClientRuntime {
             modern.compact.providers.putAll(bindings.summaries);
             modern.compact.slots.putAll(bindings.summarySlots);
             modern.compact.bindings.putAll(bindings.observers);
+            modern.windowMenus.putAll(bindings.windowMenus);
         }
         modern.compact.validate();
         protocol =
