@@ -143,6 +143,7 @@ class IconStyleTest implements ClientModule, CompactProvider {
         var path = directory.resolve("ui.json");
         assertEquals(IconStyle.GLASS_LINE, runtime.iconStyle());
         runtime.loadPreferences(path);
+        runtime.uiVersion(UiVersion.CLASSIC);
         runtime.iconStyle(IconStyle.INK);
         assertEquals(IconStyle.INK, new WorkspacePreferences(path).load().modern().icons());
         var restarted = new ClientRuntime(List.of(new IconStyleTest()));

@@ -25,6 +25,8 @@ import java.util.Set;
 public final class WorkspacePreferences {
     public static final int FORMAT_VERSION = 2;
     private static final int FIRST_VERSION = 1;
+    /** 这个文件写下时的缺省界面版本；和现在的缺省不一样，说明缺省在那之后换过。 */
+    private static final String DEFAULT_SEEN = "uiVersionDefault";
     private static final long MAX_FILE_BYTES = 1_048_576L;
     private static final Gson JSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path path;
@@ -87,13 +89,21 @@ public final class WorkspacePreferences {
                     pins,
                     !root.has("motion") || root.get("motion").getAsBoolean(),
                     windowPins);
-            return classic.withUiVersion(UiVersion.of(text(root, "uiVersion")))
+            return classic.withUiVersion(savedVersion(root))
                     .withModern(modern(root))
                     .withBlur(root.has("blur") && root.get("blur").getAsBoolean());
         } catch (RuntimeException | IOException failure) {
             writable = false;
             throw new IOException("cannot load UI preferences: " + path, failure);
         }
+    }
+
+    private static UiVersion savedVersion(JsonObject root) {
+        // 文件是在缺省版本换掉之前写的（包括还没有这个字段的旧文件）：跟一次新的缺省。之后玩家再切回去就照文件里的来。
+        if (!UiVersion.DEFAULT.id().equals(text(root, DEFAULT_SEEN))) {
+            return UiVersion.DEFAULT;
+        }
+        return UiVersion.of(text(root, "uiVersion"));
     }
 
     private static Map<String, Rect> rects(JsonObject object, String field) {
@@ -149,6 +159,7 @@ public final class WorkspacePreferences {
         root.addProperty("motion", snapshot.motion());
         root.add("pinnedWindows", JSON.toJsonTree(snapshot.pinnedWindows()));
         root.addProperty("uiVersion", snapshot.uiVersion().id());
+        root.addProperty(DEFAULT_SEEN, UiVersion.DEFAULT.id());
         root.addProperty("blur", snapshot.blur());
         var modern = new JsonObject();
         if (root.has("modern")) {

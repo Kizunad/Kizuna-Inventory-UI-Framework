@@ -210,7 +210,7 @@ public final class ClientRuntime {
             if (state.automaticBounds()) {
                 windows.remove(state.key().windowType());
             } else {
-                windows.put(state.key().windowType(), state.desiredBounds());
+                windows.put(state.key().windowType(), state.savedBounds());
             }
         }
         var huds = new LinkedHashMap<>(saved.huds());
@@ -433,6 +433,11 @@ public final class ClientRuntime {
     /** 当前版标题栏的高度；窗口内容区从它下面开始。 */
     int headerHeight() {
         return edition.headerHeight();
+    }
+
+    /** 窗口正文要这么大的地方：加上标题栏和边框交给窗口管理器，规则见 UiWindowManager.fit。 */
+    public boolean fitContent(UiWindowManager.WindowKey key, int width, int height) {
+        return workspace().windows().fit(key, width + 2 * WINDOW_BORDER, height + headerHeight() + WINDOW_BORDER);
     }
 
     /** 新版界面的图标风格；旧版界面不读它。 */

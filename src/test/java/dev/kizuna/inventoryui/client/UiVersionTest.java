@@ -10,6 +10,7 @@ import dev.kizuna.inventoryui.workspace.CompactPlacement;
 import dev.kizuna.inventoryui.workspace.UiVersion;
 import dev.kizuna.inventoryui.workspace.WorkspacePreferences;
 import io.wispforest.owo.ui.core.UIComponent;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -99,16 +100,16 @@ class UiVersionTest implements ClientModule, CompactProvider, RestoreBinding {
     }
 
     @Test
-    void newPreferencesStartInClassicAndEachVersionHasItsOwnCatalog() {
-        assertEquals(UiVersion.CLASSIC, runtime.uiVersion());
+    void newPreferencesStartInModernAndEachVersionHasItsOwnCatalog() {
+        assertEquals(UiVersion.MODERN, runtime.uiVersion());
+        assertEquals("体表", runtime.catalog().features().get(FEATURE).title());
+        assertEquals(MODERN_MIN_WIDTH, runtime.catalog().windows().get(TYPE).definition().minimumWidth());
+        assertEquals(List.of("kiui:glass"), List.copyOf(runtime.catalog().themes().keySet()));
+        runtime.uiVersion(UiVersion.CLASSIC);
         assertEquals("检视", runtime.catalog().features().get(FEATURE).title());
         assertEquals(CLASSIC_MIN_WIDTH, runtime.catalog().windows().get(TYPE).definition().minimumWidth());
         assertFalse(runtime.catalog().themes().containsKey("kiui:glass"));
         assertEquals("kiui:ink_jade", runtime.theme());
-        runtime.uiVersion(UiVersion.MODERN);
-        assertEquals("体表", runtime.catalog().features().get(FEATURE).title());
-        assertEquals(MODERN_MIN_WIDTH, runtime.catalog().windows().get(TYPE).definition().minimumWidth());
-        assertEquals(List.of("kiui:glass"), List.copyOf(runtime.catalog().themes().keySet()));
     }
 
     @Test
@@ -152,10 +153,34 @@ class UiVersionTest implements ClientModule, CompactProvider, RestoreBinding {
     void savedVersionIsRestoredOnLoad(@TempDir Path dir) throws Exception {
         var path = dir.resolve("ui.json");
         runtime.loadPreferences(path);
-        runtime.uiVersion(UiVersion.MODERN);
+        runtime.uiVersion(UiVersion.CLASSIC);
         var reloaded = new ClientRuntime(List.of(new UiVersionTest()));
-        assertEquals(UiVersion.CLASSIC, reloaded.uiVersion());
-        reloaded.loadPreferences(path);
         assertEquals(UiVersion.MODERN, reloaded.uiVersion());
+        reloaded.loadPreferences(path);
+        assertEquals(UiVersion.CLASSIC, reloaded.uiVersion(), "玩家切回旧版以后，重开仍是旧版");
+    }
+
+    @Test
+    void preferencesWrittenUnderTheOldDefaultFollowTheNewDefaultOnce(@TempDir Path dir) throws Exception {
+        // 缺省还是旧版时写下的文件：不管里面记的是旧版（那时没人选过）还是根本没有这个字段，都跟一次新的缺省。
+        var written = dir.resolve("written.json");
+        Files.writeString(written, """
+                {"version":2,"theme":"kiui:xuan_paper","uiVersion":"classic"}
+                """);
+        var legacy = dir.resolve("legacy.json");
+        Files.writeString(legacy, """
+                {"version":1,"theme":"kiui:xuan_paper"}
+                """);
+        for (var path : List.of(written, legacy)) {
+            var upgraded = new ClientRuntime(List.of(new UiVersionTest()));
+            upgraded.loadPreferences(path);
+            assertEquals(UiVersion.MODERN, upgraded.uiVersion());
+            // 旧版自己的主题还留着，切回去就是原来的样子，而且这次切换记得住。
+            upgraded.uiVersion(UiVersion.CLASSIC);
+            assertEquals("kiui:xuan_paper", upgraded.theme());
+            var reopened = new ClientRuntime(List.of(new UiVersionTest()));
+            reopened.loadPreferences(path);
+            assertEquals(UiVersion.CLASSIC, reopened.uiVersion());
+        }
     }
 }

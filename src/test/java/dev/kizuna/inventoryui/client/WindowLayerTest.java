@@ -8,6 +8,7 @@ import dev.kizuna.inventoryui.window.UiWindowDefinition;
 import dev.kizuna.inventoryui.window.UiWindowManager.Rect;
 import dev.kizuna.inventoryui.window.UiWindowManager.WindowKey;
 import dev.kizuna.inventoryui.window.UiWindowManager.WindowState;
+import dev.kizuna.inventoryui.workspace.UiVersion;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,11 +24,18 @@ class WindowLayerTest {
     private static final Rect VIEWPORT = new Rect(30, 20, 500, 300);
     private static final UiWindowDefinition WINDOW = new UiWindowDefinition(
             "test:window", "test:template", 40, 40, Set.of(UiWindowDefinition.Capability.WINDOW));
-    private final ClientRuntime runtime = new ClientRuntime(List.of());
+    private final ClientRuntime runtime = classicRuntime();
     private final Screen host = host();
     private final WindowLayer layer = runtime.attach(host, VIEWPORT);
     private final WindowState back = open("back", new Rect(10, 10, 180, 110));
     private final WindowState front = open("front", new Rect(60, 60, 200, 140));
+
+    private static ClientRuntime classicRuntime() {
+        // 这里验的是旧版的窗口层。
+        var runtime = new ClientRuntime(List.of());
+        runtime.uiVersion(UiVersion.CLASSIC);
+        return runtime;
+    }
 
     @Test
     void clickSelectsTopmostWindowAtScreenCoordinates() {

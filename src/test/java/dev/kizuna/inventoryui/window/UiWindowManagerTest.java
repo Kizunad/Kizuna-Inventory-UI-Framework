@@ -38,6 +38,60 @@ class UiWindowManagerTest {
     }
 
     @Test
+    void contentSizedWindowFollowsContentWhileStayingAutomatic() {
+        // 内容要多大给多大，但不小于首选外框；窗口还在自动位置，照新尺寸居中，偏好里不留尺寸。
+        var manager = new UiWindowManager(427, 240);
+        var key = manager.key(FITTED.windowType(), "body");
+        var state = manager.openOrFocus(FITTED, key, null);
+        assertEquals(new UiWindowManager.Rect(138, 38, 150, 104), state.bounds());
+        assertTrue(manager.fit(key, 150, 150));
+        assertEquals(new UiWindowManager.Rect(138, 38, 150, 150), state.bounds());
+        assertTrue(state.automaticBounds());
+        manager.resizeViewport(854, 480);
+        assertEquals(new UiWindowManager.Rect(352, 38, 150, 150), state.bounds(), "视口变了仍用内容要的尺寸");
+        assertTrue(manager.fit(key, 100, 80));
+        assertEquals(new UiWindowManager.Rect(352, 38, 150, 104), state.bounds(), "内容变少缩回首选外框");
+        assertFalse(manager.fit(key, 0, 80));
+    }
+
+    @Test
+    void contentSizedWindowKeepsPlayerPositionAndSavesOnlyPosition() {
+        var manager = new UiWindowManager(427, 240);
+        var key = manager.key(FITTED.windowType(), "body");
+        var state = manager.openOrFocus(FITTED, key, null);
+        manager.beginDrag(key, 140, 40);
+        manager.dragTo(22, 52);
+        manager.endDrag();
+        assertEquals(new UiWindowManager.Rect(20, 50, 150, 104), state.bounds());
+        assertTrue(manager.fit(key, 150, 134));
+        assertEquals(new UiWindowManager.Rect(20, 50, 150, 134), state.bounds());
+        assertEquals(new UiWindowManager.Rect(20, 50, 150, 104), state.savedBounds());
+        manager.close(key);
+        var reopened = manager.openOrFocus(FITTED, key, new UiWindowManager.Rect(20, 50, 150, 104));
+        assertTrue(manager.fit(key, 150, 118), "存下来的是首选尺寸，重开后仍跟着内容走");
+        assertEquals(new UiWindowManager.Rect(20, 50, 150, 118), reopened.bounds());
+    }
+
+    @Test
+    void playerSizedWindowIgnoresContent() {
+        // 玩家拉过尺寸就以玩家的为准，这个尺寸也照原样存；恢复默认布局后重新跟着内容走。
+        var manager = new UiWindowManager(427, 240);
+        var key = manager.key(FITTED.windowType(), "body");
+        var state = manager.openOrFocus(FITTED, key, null);
+        assertTrue(manager.fit(key, 150, 134));
+        assertTrue(manager.resize(key, "160", "90"));
+        assertFalse(manager.fit(key, 150, 150));
+        assertEquals(160, state.bounds().width());
+        assertEquals(90, state.bounds().height());
+        assertEquals(state.desiredBounds(), state.savedBounds());
+        manager.close(key);
+        manager.openOrFocus(FITTED, key, new UiWindowManager.Rect(20, 50, 160, 90));
+        assertFalse(manager.fit(key, 150, 150), "存下来的尺寸不是首选尺寸，说明玩家定过");
+        manager.restorePreferredBounds(key);
+        assertTrue(manager.fit(key, 150, 150));
+    }
+
+    @Test
     void presentationChangesKeepScopeAndPinUntilExplicitClose() {
         var manager = new UiWindowManager(300, 200);
         var key = manager.key("item-inspect", "presentation");
@@ -98,6 +152,9 @@ class UiWindowManagerTest {
         assertFalse(manager.pin(key, true));
         assertFalse(state.hudVisible(), "工位生命周期不能通过 HUD 固定逃逸");
     }
+
+    private static final UiWindowDefinition FITTED = new UiWindowDefinition("test:fitted", "test:fitted", 150, 60,
+            150, 104, Set.of(UiWindowDefinition.Capability.WINDOW));
 
     private static final UiWindowDefinition DEFINITION =
             new UiWindowDefinition(

@@ -54,6 +54,7 @@ public final class UiWindowManager {
                         initialBounds == null ? preferredBounds(definition) : initialBounds,
                         new DefaultUiScreenScope());
         created.automaticBounds = initialBounds == null;
+        created.sizedByPlayer = initialBounds != null && !preferredSize(definition, initialBounds);
         created.scope().onOpen();
         created.bounds(clamp(created.desiredBounds, definition));
         windows.put(key, created);
@@ -247,6 +248,8 @@ public final class UiWindowManager {
                 return false;
             }
             state.automaticBounds = false;
+            state.sizedByPlayer = true;
+            state.fitted = false;
             state.desiredBounds =
                     new Rect(
                             state.bounds.x(),
@@ -258,6 +261,28 @@ public final class UiWindowManager {
         } catch (NumberFormatException | NullPointerException invalid) {
             return false;
         }
+    }
+
+    /**
+     * 窗口正文按内容要外框大小，内容变了可以再要。尺寸没被玩家定过的窗口照办，不小于定义里的首选外框，
+     * 位置不动（还在自动位置的窗口照新尺寸重新居中）；玩家拉过或填过尺寸的窗口不动，返回 false。
+     */
+    public synchronized boolean fit(WindowKey key, int width, int height) {
+        WindowState state = windows.get(key);
+        if (!editable(state) || state.sizedByPlayer || width <= 0 || height <= 0) {
+            return false;
+        }
+        state.fitted = true;
+        state.fittedWidth = Math.max(state.definition.preferredWidth(), width);
+        state.fittedHeight = Math.max(state.definition.preferredHeight(), height);
+        if (state.automaticBounds) {
+            state.desiredBounds = preferredBounds(state);
+        } else {
+            state.desiredBounds = new Rect(state.desiredBounds.x(), state.desiredBounds.y(),
+                    state.fittedWidth, state.fittedHeight);
+        }
+        state.bounds(clamp(state.desiredBounds, state.definition));
+        return true;
     }
 
     private static boolean editable(WindowState state) {
@@ -291,7 +316,7 @@ public final class UiWindowManager {
         viewportHeight = height;
         for (WindowState state : windows.values()) {
             if (state.automaticBounds) {
-                state.desiredBounds = preferredBounds(state.definition());
+                state.desiredBounds = preferredBounds(state);
             }
             state.bounds(clamp(state.desiredBounds, state.definition()));
         }
@@ -304,21 +329,39 @@ public final class UiWindowManager {
             return;
         }
         state.automaticBounds = true;
-        state.desiredBounds = preferredBounds(state.definition());
+        state.sizedByPlayer = false;
+        state.desiredBounds = preferredBounds(state);
         state.bounds(clamp(state.desiredBounds, state.definition()));
     }
 
+    private Rect preferredBounds(WindowState state) {
+        // 正文按内容要过尺寸的窗口用要到的尺寸，其余用定义里的首选尺寸。
+        UiWindowDefinition definition = state.definition();
+        if (state.fitted) {
+            return automaticBounds(definition, state.fittedWidth, state.fittedHeight);
+        }
+        return preferredBounds(definition);
+    }
+
     private Rect preferredBounds(UiWindowDefinition definition) {
+        return automaticBounds(definition, definition.preferredWidth(), definition.preferredHeight());
+    }
+
+    private Rect automaticBounds(UiWindowDefinition definition, int wantedWidth, int wantedHeight) {
         // 顶部为工作台入口留位，小屏优先使用可用空间；大屏不把内容无限拉大。
         int availableWidth = Math.max(1, viewportWidth - AUTOMATIC_MARGIN * 2);
         int availableHeight = Math.max(1, viewportHeight - AUTOMATIC_TOP - AUTOMATIC_MARGIN);
         int width = Math.min(viewportWidth, Math.max(definition.minimumWidth(),
-                Math.min(definition.preferredWidth(), availableWidth)));
+                Math.min(wantedWidth, availableWidth)));
         int height = Math.min(viewportHeight, Math.max(definition.minimumHeight(),
-                Math.min(definition.preferredHeight(), availableHeight)));
+                Math.min(wantedHeight, availableHeight)));
         int x = (viewportWidth - width) / 2;
         int y = Math.min(AUTOMATIC_TOP, viewportHeight - height);
         return new Rect(x, y, width, height);
+    }
+
+    private static boolean preferredSize(UiWindowDefinition definition, Rect bounds) {
+        return bounds.width() == definition.preferredWidth() && bounds.height() == definition.preferredHeight();
     }
 
     public synchronized WindowKey key(String windowType, String identity) {
@@ -409,6 +452,10 @@ public final class UiWindowManager {
         private Rect bounds;
         private Rect desiredBounds;
         private boolean automaticBounds;
+        private boolean sizedByPlayer;
+        private boolean fitted;
+        private int fittedWidth;
+        private int fittedHeight;
         private boolean closed;
         private boolean minimized;
         private boolean pinned;
@@ -470,6 +517,15 @@ public final class UiWindowManager {
 
         public Rect desiredBounds() {
             return desiredBounds;
+        }
+
+        /** 写进偏好的外框。尺寸跟着内容走的窗口只记位置，尺寸记成定义里的首选，下次打开仍跟着内容走。 */
+        public Rect savedBounds() {
+            if (!fitted) {
+                return desiredBounds;
+            }
+            return new Rect(desiredBounds.x(), desiredBounds.y(),
+                    definition.preferredWidth(), definition.preferredHeight());
         }
 
         private void close() {

@@ -214,10 +214,9 @@ class CompactWindowsTest implements ClientModule, CompactProvider, RestoreBindin
                  "windows":{"fixture:window":{"x":300,"y":140,"width":90,"height":80,"extra":"留"}}}
                 """);
         runtime.loadPreferences(path);
-        // 旧配置读进来是旧版；玩家第一次切到新版、宿主给出可用区时才迁。
-        assertEquals(UiVersion.CLASSIC, runtime.uiVersion());
+        // 旧配置读进来跟着缺省换成新版；宿主给出可用区时才迁。
+        assertEquals(UiVersion.MODERN, runtime.uiVersion());
         assertTrue(compact.placements.isEmpty());
-        runtime.uiVersion(UiVersion.MODERN);
         var host = new net.minecraft.client.gui.screens.Screen(null, null, null) {};
         runtime.attach(host, FRAME);
         assertTrue(compact.placements.get(FEATURE).pinned());

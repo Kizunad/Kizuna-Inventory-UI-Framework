@@ -8,14 +8,14 @@ public enum UiVersion {
     MODERN;
 
     /** 没有偏好时用的版本。 */
-    public static final UiVersion DEFAULT = CLASSIC;
+    public static final UiVersion DEFAULT = MODERN;
 
     /** 写进偏好文件和命令里的名字。 */
     public String id() {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    /** 没写或认不出的名字按缺省的旧版处理，偏好文件里的拼写错误不会让界面打不开。 */
+    /** 没写或认不出的名字按缺省版本处理，偏好文件里的拼写错误不会让界面打不开。 */
     public static UiVersion of(String id) {
         for (var version : values()) {
             if (version.id().equals(id)) {
