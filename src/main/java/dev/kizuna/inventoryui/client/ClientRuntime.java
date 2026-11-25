@@ -562,11 +562,14 @@ public final class ClientRuntime {
     public void background(String id) {
         // null 是明确的关闭背景选择；非空 ID 必须事先注册。
         if (id != null && id.startsWith("local:")) {
-            if (localBackgrounds == null || !localBackgrounds.select(id)) {
-                throw new IllegalArgumentException(
-                        localBackgrounds == null
-                                ? "local background directory is not configured"
-                                : localBackgrounds.error());
+            if (localBackgrounds == null) {
+                throw new IllegalArgumentException("local background directory is not configured");
+            }
+            if (!localBackgrounds.select(id)) {
+                if (edition == modern) {
+                    throw new IllegalArgumentException(localBackgrounds.localizedError());
+                }
+                throw new IllegalArgumentException(localBackgrounds.error());
             }
         } else if (id != null && !catalog().backgrounds().containsKey(id)) {
             throw new IllegalArgumentException("unknown background: " + id);
@@ -695,7 +698,12 @@ public final class ClientRuntime {
         // 优先使用关联功能的展示名称，没有入口时使用稳定类型 ID 便于排查。
         return catalog().features().values().stream()
                 .filter(feature -> feature.windowType().equals(state.key().windowType()))
-                .map(FrameworkCatalog.Feature::title)
+                .map(feature -> {
+                    if (edition == modern) {
+                        return ModernEdition.featureLabel(feature, "title", feature.title());
+                    }
+                    return feature.title();
+                })
                 .findFirst()
                 .orElse(state.key().windowType());
     }

@@ -42,7 +42,7 @@ public final class ModernWindowLayer extends WindowLayer {
     private CompactPlacement dragOrigin;
     private int grabX;
     private int grabY;
-    private int dragFloor;
+    private final int dragFloor;
     private Rect viewport;
     private WindowKey focused;
     private WindowKey pressed;
@@ -56,6 +56,7 @@ public final class ModernWindowLayer extends WindowLayer {
         this.runtime = runtime;
         this.compact = runtime.modern().compact;
         this.windows = runtime.workspace().windows();
+        dragFloor = host instanceof ModernWorkspaceScreen ? TOOLBAR_HEIGHT : 0;
         viewport(viewport);
         // 重开宿主时沿用最高可见窗口的焦点，窗口 scope 随连接保留。
         for (var state : windows.snapshot()) {
@@ -74,12 +75,9 @@ public final class ModernWindowLayer extends WindowLayer {
         // 位置变动也要立即应用；动画始终使用局部坐标，不把宿主偏移写入偏好。
         if (!detached && !next.equals(viewport)) {
             viewport = next;
-            windows.resizeViewport(next.width(), next.height());
+            motions.clear();
+            windows.resizeViewport(next.width(), next.height(), dragFloor);
         }
-    }
-
-    void toolbarFloor(int height) {
-        dragFloor = height;
     }
 
     private Rect compactFrame() {

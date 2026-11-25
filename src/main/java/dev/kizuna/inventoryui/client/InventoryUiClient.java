@@ -5,6 +5,7 @@ import dev.kizuna.inventoryui.client.component.ModelPreviewRenderer;
 import dev.kizuna.inventoryui.client.status.StatusBlockers;
 import dev.kizuna.inventoryui.client.status.StatusIcons;
 import dev.kizuna.inventoryui.status.StatusGroups;
+import dev.kizuna.inventoryui.workspace.UiVersion;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -56,6 +57,11 @@ public final class InventoryUiClient implements ClientModInitializer {
             client.gui.setScreen(null);
         }
         runtime.disconnected();
+    }
+
+    /** 独立组件在框架初始化前可沿用其原有文案。 */
+    public static boolean usesModernWindows() {
+        return runtime != null && runtime.uiVersion() == UiVersion.MODERN;
     }
 
     public static ClientRuntime runtime() {

@@ -22,6 +22,8 @@ public final class UiWindowManager {
     private boolean dragging;
     private int viewportWidth;
     private int viewportHeight;
+    private int viewportTop;
+    private AutomaticPlacement placement;
     private long generation;
     private boolean clearing;
 
@@ -43,8 +45,7 @@ public final class UiWindowManager {
         WindowState existing = windows.get(key);
         // 同一身份始终复用同一实例及其订阅，最小化后再打开也只恢复和聚焦。
         if (existing != null) {
-            existing.minimized = false;
-            focus(key);
+            restore(key);
             return existing;
         }
         WindowState created =
@@ -56,7 +57,7 @@ public final class UiWindowManager {
         created.automaticBounds = initialBounds == null;
         created.sizedByPlayer = initialBounds != null && !preferredSize(definition, initialBounds);
         created.scope().onOpen();
-        created.bounds(clamp(created.desiredBounds, definition));
+        layout(created);
         windows.put(key, created);
         focus(key);
         return created;
@@ -205,6 +206,10 @@ public final class UiWindowManager {
         if (state == null) {
             return false;
         }
+        if (state.minimized && state.automaticBounds && placement != null) {
+            // 展开前重新找空位，小窗自己的位置不算障碍。
+            layout(state);
+        }
         state.minimized = false;
         return focus(key);
     }
@@ -272,16 +277,23 @@ public final class UiWindowManager {
         if (!editable(state) || state.sizedByPlayer || width <= 0 || height <= 0) {
             return false;
         }
+        int wantedWidth = Math.max(state.definition.preferredWidth(), width);
+        int wantedHeight = Math.max(state.definition.preferredHeight(), height);
+        // 正文可能每帧申请相同大小，只有尺寸变化时才重排，保持已开窗口稳定。
+        if (placement != null && state.fitted
+                && wantedWidth == state.fittedWidth && wantedHeight == state.fittedHeight) {
+            return true;
+        }
         state.fitted = true;
-        state.fittedWidth = Math.max(state.definition.preferredWidth(), width);
-        state.fittedHeight = Math.max(state.definition.preferredHeight(), height);
+        state.fittedWidth = wantedWidth;
+        state.fittedHeight = wantedHeight;
         if (state.automaticBounds) {
             state.desiredBounds = preferredBounds(state);
         } else {
             state.desiredBounds = new Rect(state.desiredBounds.x(), state.desiredBounds.y(),
                     state.fittedWidth, state.fittedHeight);
         }
-        state.bounds(clamp(state.desiredBounds, state.definition));
+        layout(state);
         return true;
     }
 
@@ -308,17 +320,22 @@ public final class UiWindowManager {
     }
 
     public synchronized void resizeViewport(int width, int height) {
+        resizeViewport(width, height, 0);
+    }
+
+    public synchronized void resizeViewport(int width, int height, int topInset) {
         // 自动窗口随视口重选舒适尺寸；玩家手动布局只临时裁剪，保留原有意图。
         if (width <= 0 || height <= 0) {
             throw new IllegalArgumentException("viewport size must be positive");
         }
         viewportWidth = width;
         viewportHeight = height;
+        viewportTop = Math.clamp(topInset, 0, height - 1);
         for (WindowState state : windows.values()) {
             if (state.automaticBounds) {
                 state.desiredBounds = preferredBounds(state);
             }
-            state.bounds(clamp(state.desiredBounds, state.definition()));
+            layout(state);
         }
     }
 
@@ -331,7 +348,28 @@ public final class UiWindowManager {
         state.automaticBounds = true;
         state.sizedByPlayer = false;
         state.desiredBounds = preferredBounds(state);
-        state.bounds(clamp(state.desiredBounds, state.definition()));
+        layout(state);
+    }
+
+    /** 宿主可为自动外框选择落点；拖动或从偏好恢复的外框只做视口夹紧。 */
+    public synchronized void automaticPlacement(AutomaticPlacement placement) {
+        this.placement = Objects.requireNonNull(placement);
+    }
+
+    @FunctionalInterface
+    public interface AutomaticPlacement {
+        Rect place(WindowState window, Rect preferred, Rect available);
+    }
+
+    private void layout(WindowState state) {
+        Rect preferred = clamp(state.desiredBounds, state.definition);
+        if (placement != null && state.automaticBounds) {
+            // 自动落点只改实际矩形，不把临时避让写成玩家布局。
+            Rect available = new Rect(0, viewportTop, viewportWidth, viewportHeight - viewportTop);
+            state.bounds(placement.place(state, preferred, available));
+        } else {
+            state.bounds(preferred);
+        }
     }
 
     private Rect preferredBounds(WindowState state) {
@@ -404,9 +442,9 @@ public final class UiWindowManager {
         // 视口容不下最小尺寸时优先保持可见，再把左上角约束到可容纳的位置。
         int width = Math.min(viewportWidth, Math.max(definition.minimumWidth(), bounds.width()));
         int height =
-                Math.min(viewportHeight, Math.max(definition.minimumHeight(), bounds.height()));
+                Math.min(viewportHeight - viewportTop, Math.max(definition.minimumHeight(), bounds.height()));
         int x = Math.max(0, Math.min(bounds.x(), viewportWidth - width));
-        int y = Math.max(0, Math.min(bounds.y(), viewportHeight - height));
+        int y = Math.clamp(bounds.y(), viewportTop, viewportHeight - height);
         return new Rect(x, y, width, height);
     }
 

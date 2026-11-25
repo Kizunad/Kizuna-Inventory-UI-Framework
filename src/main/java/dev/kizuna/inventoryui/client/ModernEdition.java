@@ -14,6 +14,7 @@ import dev.kizuna.inventoryui.workspace.UiVersion;
 import dev.kizuna.inventoryui.workspace.WorkspaceController;
 import dev.kizuna.inventoryui.workspace.WorkspacePreferences.Snapshot;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ import java.util.function.Function;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.locale.Language;
 
 /** 新版界面：琉璃外框，登记了摘要的窗口可以收成小窗并锁到游戏画面。布局存在偏好的 modern 一项里。 */
 final class ModernEdition extends UiEdition {
@@ -37,11 +39,37 @@ final class ModernEdition extends UiEdition {
         compact = new CompactWindows(this);
         // 没登记摘要的窗口收小后无处可画，窗口模型直接拒绝。
         workspace.windows().restrictMinimize(compact.providers::containsKey);
+        workspace.windows().automaticPlacement(this::place);
+    }
+
+    private Rect place(WindowState window, Rect preferred, Rect frame) {
+        // 收小和展开的窗口使用各自真正绘制的矩形，不把当前窗口当成自己的障碍。
+        var obstacles = new ArrayList<Rect>();
+        var compactBounds = compact.workspaceLayout(frame);
+        for (var other : workspace.windowBar()) {
+            if (other == window) {
+                continue;
+            }
+            Rect bounds = other.bounds();
+            if (other.minimized()) {
+                bounds = compactBounds.get(other);
+            }
+            if (bounds != null) {
+                obstacles.add(bounds);
+            }
+        }
+        return ModernWindowPlacement.place(preferred, frame, obstacles);
     }
 
     @Override
     UiVersion version() {
         return UiVersion.MODERN;
+    }
+
+    static String featureLabel(FrameworkCatalog.Feature feature, String field, String fallback) {
+        // 目录在语言资源加载前登记；搜索、菜单和标题栏都在展示时按同一个入口 ID 取译名。
+        String key = "feature." + feature.id().replace(':', '.') + "." + field;
+        return Language.getInstance().getOrDefault(key, fallback);
     }
 
     @Override

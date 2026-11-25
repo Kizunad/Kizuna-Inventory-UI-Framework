@@ -9,7 +9,7 @@ import net.minecraft.network.chat.Component;
 
 /** 菜单按钮使用当前主题，不再混入原版石纹按钮。 */
 final class ThemedButton extends Button {
-    private static final int TEXT_INSET = 6;
+    static final int TEXT_INSET = 6;
     private final ClientRuntime runtime;
 
     ThemedButton(

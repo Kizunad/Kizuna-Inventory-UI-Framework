@@ -57,6 +57,7 @@ public final class StyledIcons {
     }
 
     static String message(IconStyle style, Identifier icon, Identifier texture) {
-        return "图标风格 " + style.id() + " 缺少图标 " + icon + "，应有贴图 " + texture;
+        return net.minecraft.network.chat.Component.translatableWithFallback("kizuna_inventory_ui.icons.missing",
+                "图标风格 %s 缺少图标 %s，应有贴图 %s", style.id(), icon.toString(), texture.toString()).getString();
     }
 }

@@ -13,6 +13,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
+import net.minecraft.network.chat.Component;
 
 /** 本地背景纹理有界缓存；刷新、替换和关闭时释放显存。仅客户端线程调用。 */
 final class LocalBackgrounds implements AutoCloseable {
@@ -23,7 +24,9 @@ final class LocalBackgrounds implements AutoCloseable {
     private final Map<String, Texture> thumbnails = new LinkedHashMap<>();
     private List<String> entries = List.of();
     private Texture selected;
-    private String error = "";
+    private Problem problem;
+
+    private record Problem(String key, String original, String detail) {}
 
     LocalBackgrounds(Path directory) {
         library = new LocalBackgroundLibrary(directory);
@@ -38,7 +41,19 @@ final class LocalBackgrounds implements AutoCloseable {
     }
 
     String error() {
-        return error;
+        // 旧版继续显示原来的固定说明。
+        if (problem == null) {
+            return "";
+        }
+        return problem.original() + problem.detail();
+    }
+
+    String localizedError() {
+        // 新版用语言资源解释失败，底层文件错误作为参数保留。
+        if (problem == null) {
+            return "";
+        }
+        return Component.translatable(problem.key(), problem.detail()).getString();
     }
 
     void refresh() {
@@ -47,9 +62,9 @@ final class LocalBackgrounds implements AutoCloseable {
         thumbnails.clear();
         try {
             entries = library.entries();
-            error = "";
+            problem = null;
         } catch (IOException failure) {
-            error = "无法读取背景目录：" + failure.getMessage();
+            problem = new Problem("kizuna_inventory_ui.workspace.read_failed", "无法读取背景目录：", failure.getMessage());
         }
     }
 
@@ -59,10 +74,10 @@ final class LocalBackgrounds implements AutoCloseable {
             var replacement = upload(library.decode(id), false);
             release(selected);
             selected = replacement;
-            error = "";
+            problem = null;
             return true;
         } catch (IOException | RuntimeException failure) {
-            error = "背景无法加载，保留当前图像：" + failure.getMessage();
+            problem = new Problem("kizuna_inventory_ui.workspace.load_failed", "背景无法加载，保留当前图像：", failure.getMessage());
             return false;
         }
     }

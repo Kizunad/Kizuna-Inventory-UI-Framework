@@ -41,6 +41,8 @@ dependencies {
 
 test {
     useJUnitPlatform()
+    workingDir layout.buildDirectory.dir('test-runtime')
+    doFirst { workingDir.mkdirs() }
 }
 
 sourceSets {

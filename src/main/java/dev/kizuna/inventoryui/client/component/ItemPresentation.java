@@ -1,5 +1,6 @@
 package dev.kizuna.inventoryui.client.component;
 
+import dev.kizuna.inventoryui.client.InventoryUiClient;
 import dev.kizuna.inventoryui.inventory.InventorySnapshot;
 import dev.kizuna.inventoryui.inventory.ItemAction;
 import dev.kizuna.inventoryui.theme.ThemeTokens;
@@ -25,7 +26,14 @@ public interface ItemPresentation {
     }
 
     default List<Component> tooltip(InventorySnapshot.Item item) {
-        return List.of(Component.literal(item.name()), Component.literal("数量：" + item.count()));
+        // 物品名称由模块给出，数量标签在新版随游戏语言显示。
+        Component count;
+        if (InventoryUiClient.usesModernWindows()) {
+            count = Component.translatable("kizuna_inventory_ui.item.count", item.count());
+        } else {
+            count = Component.literal("数量：" + item.count());
+        }
+        return List.of(Component.literal(item.name()), count);
     }
 
     default String borderToken(InventorySnapshot.Item item) {

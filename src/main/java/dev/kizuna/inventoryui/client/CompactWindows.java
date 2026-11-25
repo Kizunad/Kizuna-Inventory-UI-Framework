@@ -271,7 +271,7 @@ final class CompactWindows {
     }
 
     /** 工作台里收小的窗口在可用区内的矩形；和游戏画面使用同一套排法。 */
-    private Map<WindowState, Rect> workspaceLayout(Rect frame) {
+    Map<WindowState, Rect> workspaceLayout(Rect frame) {
         var items = entries.values().stream()
                 .filter(entry -> entry.state.minimized() && !entry.state.closed())
                 .map(this::item)

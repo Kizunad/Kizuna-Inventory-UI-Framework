@@ -153,6 +153,47 @@ class ModernWindowLayerTest {
         return new MouseButtonEvent(x, y, new MouseButtonInfo(GLFW.GLFW_MOUSE_BUTTON_RIGHT, 0));
     }
 
+    @Test
+    void expandedWindowStaysBelowToolbarAfterFitDragAndResize() {
+        // 小屏容不下声明的最小高度，打开和以后每一次布局都要为标题和顶栏留位。
+        var windows = runtime.workspace().windows();
+        int floor = ModernMetrics.TOOLBAR_HEIGHT;
+        windows.resizeViewport(427, 240, floor);
+        var tall = new UiWindowDefinition("test:tall", "test:panel", 360, 280, WINDOW.capabilities());
+        var key = windows.key(tall.windowType(), "tall");
+        var state = windows.openOrFocus(tall, key, null);
+        assertTrue(state.bounds().y() >= floor, "打开时标题压住顶栏");
+        assertTrue(windows.fit(key, 600, 480));
+        assertTrue(state.bounds().y() >= floor, "按内容长高后标题压住顶栏");
+        var bounds = state.bounds();
+        assertTrue(windows.beginDrag(key, bounds.x() + 1, bounds.y() + 1));
+        assertTrue(windows.dragTo(0, 0));
+        assertTrue(windows.endDrag());
+        assertEquals(floor, state.bounds().y());
+        windows.resizeViewport(320, 180, floor);
+        assertEquals(new Rect(0, floor, 320, 180 - floor), state.bounds());
+    }
+
+    @Test
+    void defaultWindowsOpenSideBySideAndSavedPositionsTakePrecedence() {
+        // 两个自动窗在窄屏也放得下；玩家主动存下的重叠位置必须保留。
+        var windows = runtime.workspace().windows();
+        windows.close(front.key());
+        windows.close(back.key());
+        windows.resizeViewport(427, 240, ModernMetrics.TOOLBAR_HEIGHT);
+        var first = new UiWindowDefinition("test:breath", "test:panel", 150, 120, 170, 167, WINDOW.capabilities());
+        var second = new UiWindowDefinition("test:detail", "test:panel", 170, 150, 210, 180, WINDOW.capabilities());
+        var parent = windows.openOrFocus(first, windows.key(first.windowType(), "parent"), null);
+        Rect original = parent.bounds();
+        var child = windows.openOrFocus(second, windows.key(second.windowType(), "child"), null);
+        assertTrue(child.bounds().x() >= original.x() + original.width(), "新窗遮住已开的窗");
+        assertEquals(original, parent.bounds());
+        assertTrue(child.automaticBounds());
+        var saved = windows.openOrFocus(first, windows.key(first.windowType(), "saved"), original);
+        assertEquals(original, saved.bounds());
+        assertFalse(saved.automaticBounds());
+    }
+
     private void openMenu() {
         var action = new ItemAction("inspect", "查看", true /* enabled */, "", () -> fail("意外执行菜单项"));
         runtime.contextMenu().open(100, 100, List.of(action), () -> true);
@@ -161,6 +202,15 @@ class ModernWindowLayerTest {
     private WindowState open(String identity, Rect bounds) {
         var windows = runtime.workspace().windows();
         return windows.openOrFocus(WINDOW, windows.key(WINDOW.windowType(), identity), bounds);
+    }
+
+    @Test
+    void crowdedViewportExposesBothTitleBars() {
+        // 两个满宽窗口没有并排空间；后开的窗可缩短，但要留出前一扇窗的完整标题。
+        var frame = new Rect(0, 28, 320, 152);
+        Rect placed = ModernWindowPlacement.place(frame, frame, List.of(frame));
+        assertEquals(frame.y() + ModernMetrics.WINDOW_HEADER_HEIGHT, placed.y());
+        assertEquals(frame.y() + frame.height(), placed.y() + placed.height());
     }
 
     private WindowKey top() {
