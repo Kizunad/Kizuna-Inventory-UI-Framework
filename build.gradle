@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'dev.kizuna.inventoryui'
-version = '0.1.0-SNAPSHOT'
+version = '0.1.0'
 
 repositories {
     maven { url = 'https://maven.fabricmc.net/' }
@@ -110,7 +110,11 @@ loom {
 
 processResources {
     inputs.property 'version', project.version
-    filesMatching('fabric.mod.json') { expand version: project.version }
+    def preserveJsonEscapes = true
+    inputs.property 'preserveJsonEscapes', preserveJsonEscapes
+    filesMatching('fabric.mod.json') {
+        expand([version: project.version]) { escapeBackslash = preserveJsonEscapes }
+    }
 }
 
 jar { from('LICENSE') }

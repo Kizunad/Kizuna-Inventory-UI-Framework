@@ -38,6 +38,10 @@ protobuf { protoc { artifact = "com.google.protobuf:protoc:${libs.versions.proto
 test { useJUnitPlatform() }
 processResources {
     inputs.property 'version', project.version
-    filesMatching('fabric.mod.json') { expand version: project.version }
+    def preserveJsonEscapes = true
+    inputs.property 'preserveJsonEscapes', preserveJsonEscapes
+    filesMatching('fabric.mod.json') {
+        expand([version: project.version]) { escapeBackslash = preserveJsonEscapes }
+    }
 }
 jar { from rootProject.file('LICENSE') }

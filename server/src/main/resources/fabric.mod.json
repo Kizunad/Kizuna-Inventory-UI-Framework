@@ -3,7 +3,13 @@
   "id": "kizuna_inventory_ui_server",
   "version": "${version}",
   "name": "Kizuna's Inventory UI Framework Server",
-  "description": "库存 UI 模块的统一服务端协议、会话和消息路由",
+  "contact": {
+    "homepage": "https://github.com/Kizunad/Kizuna-Inventory-UI-Framework",
+    "sources": "https://github.com/Kizunad/Kizuna-Inventory-UI-Framework",
+    "issues": "https://github.com/Kizunad/Kizuna-Inventory-UI-Framework/issues"
+  },
+  "icon": "assets/kizuna_inventory_ui_server/icon.png",
+  "description": "Keeps inventory windows in sync with the server as players handle their equipment.\n玩家整理装备时，服务端同步库存窗口中的操作。",
   "authors": ["Kizunad"],
   "license": "MIT",
   "environment": "*",
